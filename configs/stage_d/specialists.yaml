@@ -1,10 +1,12 @@
 schema_version: 1
 
 fallback:
-  id: generic_greedy_fallback
+  id: generic_task_planner_recovery
   policy:
     type: builtin
-    name: greedy_full_task
+    name: generic_task_planner
+    profile: recovery
+    recovery_steps: 4
     max_action_time_ms: 100
     invalid_action: stay
     timeout_action: stay

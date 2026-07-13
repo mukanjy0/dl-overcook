@@ -1,0 +1,43 @@
+paths_relative_to_config: true
+seed: 101
+environment:
+  layout_name: cramped_room
+  layout_file: null
+  horizon: 400
+  old_dynamics: true
+observation: {type: featurized, include_agent_index: true}
+policies:
+  agent_0:
+    type: builtin
+    name: generic_task_planner
+    profile: balanced
+    max_action_time_ms: 100
+    invalid_action: stay
+    timeout_action: stay
+evaluation:
+  layouts:
+    - asymmetric_advantages
+    - coordination_ring
+    - counter_circuit
+    - cramped_room
+    - {layout_file: ../layouts/scenario_4.layout}
+  partners:
+    - name: greedy
+      policy: {type: builtin, name: greedy_full_task, max_action_time_ms: 100}
+    - name: sticky_greedy
+      policy: {type: builtin, name: greedy_full_task, sticky_action_prob: 0.10, max_action_time_ms: 100}
+    - name: noisy_greedy
+      policy: {type: builtin, name: greedy_full_task, sticky_action_prob: 0.10, random_action_prob: 0.10, max_action_time_ms: 100}
+    - name: random_motion
+      policy: {type: builtin, name: random_motion, max_action_time_ms: 100}
+    - name: stay
+      policy: {type: builtin, name: stay, max_action_time_ms: 100}
+  seeds: [101, 102, 103]
+  player_positions: [0, 1]
+  inference_modes: [deterministic]
+rendering: {mode: none}
+logging:
+  output_dir: ../../outputs/generic_fallback_tournament
+  save_step_log: false
+  save_episode_summary: true
+data_collection: {enabled: false}

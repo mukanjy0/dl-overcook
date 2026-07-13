@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -521,7 +522,10 @@ exit "$status"
 
 def run_remote(ssh: list[str], script: str, args: list[str], log_path: Path) -> int:
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    command = ssh + ["bash", "-s", "--", *args]
+    # ssh sends its remote command through a shell. Quote every positional
+    # argument so setup and job commands retain their boundaries remotely.
+    remote_command = "bash -s -- " + " ".join(shlex.quote(value) for value in args)
+    command = ssh + [remote_command]
     with log_path.open("w", encoding="utf-8") as log:
         completed = subprocess.run(command, input=script, text=True, stdout=log, stderr=subprocess.STDOUT)
     return completed.returncode

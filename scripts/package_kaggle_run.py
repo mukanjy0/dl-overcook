@@ -36,6 +36,7 @@ SUMMARY_PATH = Path("/kaggle/working/run_summary.json")
 CONFIG_PATH = PROJECT / {config_relative!r}
 SOURCE_COMMIT = {source_commit!r}
 ACCELERATOR = {accelerator!r}
+TOURNAMENT_PROFILE = {tournament_profile!r}
 INPUT_MANIFEST_PATH = PROJECT / "remote_input_manifest.json"
 ARTIFACT_MANIFEST_PATH = Path("/kaggle/working/artifact_manifest.json")
 
@@ -98,21 +99,48 @@ try:
 
     if ACCELERATOR == "t4" and not torch.cuda.is_available():
         raise RuntimeError("Kaggle GPU was requested but torch.cuda.is_available() is false")
-    command = [
-        sys.executable,
-        str(PROJECT / "scripts" / "train.py"),
-        "--config",
-        str(CONFIG_PATH),
-        "--output-root",
-        str(OUTPUT_ROOT),
-        "--evaluate-checkpoints",
-    ]
-    result = subprocess.run(command, check=False)
-    if result.returncode != 0:
-        raise RuntimeError(f"Training command exited with code {{result.returncode}}")
-    experiment_summary = json.loads(
-        (OUTPUT_ROOT / "experiment_summary.json").read_text(encoding="utf-8")
-    )
+    if TOURNAMENT_PROFILE:
+        from src.evaluation.evaluator import evaluate_from_config
+        from src.experiment_config import load_runtime_config
+
+        config = load_runtime_config(CONFIG_PATH)
+        config["policies"]["agent_0"] = {{
+            "type": "builtin",
+            "name": "generic_task_planner",
+            "profile": TOURNAMENT_PROFILE,
+            "max_action_time_ms": 100,
+            "invalid_action": "stay",
+            "timeout_action": "stay",
+        }}
+        config["logging"] = {{
+            **(config.get("logging", {{}}) or {{}}),
+            "output_dir": str(OUTPUT_ROOT),
+        }}
+        report = evaluate_from_config(config)
+        experiment_summary = {{
+            "status": "complete",
+            "tournament_profile": TOURNAMENT_PROFILE,
+            "report": report,
+        }}
+        (OUTPUT_ROOT / "tournament.json").write_text(
+            json.dumps(experiment_summary, indent=2), encoding="utf-8"
+        )
+    else:
+        command = [
+            sys.executable,
+            str(PROJECT / "scripts" / "train.py"),
+            "--config",
+            str(CONFIG_PATH),
+            "--output-root",
+            str(OUTPUT_ROOT),
+            "--evaluate-checkpoints",
+        ]
+        result = subprocess.run(command, check=False)
+        if result.returncode != 0:
+            raise RuntimeError(f"Training command exited with code {{result.returncode}}")
+        experiment_summary = json.loads(
+            (OUTPUT_ROOT / "experiment_summary.json").read_text(encoding="utf-8")
+        )
     artifact_manifest = hash_artifacts(OUTPUT_ROOT)
     ARTIFACT_MANIFEST_PATH.write_text(
         json.dumps(
@@ -313,6 +341,7 @@ def package_run(
     force: bool,
     commit: str | None = None,
     accelerator: str = "t4",
+    tournament_profile: str | None = None,
 ) -> Path:
     """Create kaggle/<version>/input and outputs without contacting Kaggle."""
     if not re.fullmatch(r"v[0-9]+", version):
@@ -352,6 +381,7 @@ def package_run(
             project_archive_b64=project_archive_b64,
             source_commit=source_commit,
             accelerator=accelerator,
+            tournament_profile=tournament_profile,
         ),
         encoding="utf-8",
     )
@@ -386,6 +416,10 @@ def main() -> None:
     parser.add_argument("--config", default="configs/stage_a/train_self_play.yaml")
     parser.add_argument("--commit", default="HEAD")
     parser.add_argument("--accelerator", choices=("cpu", "t4"), default="t4")
+    parser.add_argument(
+        "--tournament-profile",
+        help="Run the generic fallback evaluation profile instead of PPO training",
+    )
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
 
@@ -402,6 +436,7 @@ def main() -> None:
         force=args.force,
         commit=args.commit,
         accelerator=args.accelerator,
+        tournament_profile=args.tournament_profile,
     )
     print(result)
 

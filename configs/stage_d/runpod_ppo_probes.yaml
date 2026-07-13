@@ -1,0 +1,20 @@
+repository:
+  source: archive
+  commit: HEAD
+  setup_command: UV_CONCURRENT_DOWNLOADS=4 UV_CONCURRENT_INSTALLS=4 uv sync --frozen
+pod:
+  image: runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
+  compute_type: CPU
+  cpu_flavor_ids: [cpu5c]
+  vcpu_count: 4
+  cpu_flavor_priority: custom
+  cloud_type: SECURE
+  interruptible: false
+  container_disk_gb: 30
+  volume_gb: 20
+  volume_mount_path: /workspace
+  readiness_timeout_minutes: 15
+  extra_env: {PYTHONUNBUFFERED: "1"}
+jobs:
+  - {name: ppo-generic-s201, config: configs/stage_d/ppo_generic_s201_300k.yaml, command: "timeout 3000 .venv/bin/python scripts/train.py --config {config} --evaluate-checkpoints", artifact_paths: [outputs/ppo_generic_s201_300k]}
+  - {name: ppo-generic-s202, config: configs/stage_d/ppo_generic_s202_300k.yaml, command: "timeout 3000 .venv/bin/python scripts/train.py --config {config} --evaluate-checkpoints", artifact_paths: [outputs/ppo_generic_s202_300k]}

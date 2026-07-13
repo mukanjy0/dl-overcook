@@ -59,6 +59,20 @@ def build_builtin_agent(
             ingredient=policy_config.get("ingredient", "onion"),
             avoid_teammate=policy_config.get("avoid_teammate", True),
             seed=policy_seed,
+            profile=policy_config.get("profile", "balanced"),
+            recovery_steps=policy_config.get("recovery_steps", 4),
+        )
+    if key == "generic_task_planner":
+        profile = str(policy_config.get("profile", "balanced")).lower()
+        return GreedyFullTaskPolicy(
+            ingredient=policy_config.get("ingredient", "onion"),
+            avoid_teammate=policy_config.get(
+                "avoid_teammate",
+                profile not in {"aggressive"},
+            ),
+            seed=policy_seed,
+            profile=profile,
+            recovery_steps=policy_config.get("recovery_steps", 4),
         )
     if key == "scenario4_planner":
         return Scenario4PlannerPolicy(policy_config)
@@ -76,7 +90,8 @@ def build_builtin_agent(
 
     raise PolicyLoadError(
         f"Unknown builtin policy '{name}'. Valid builtins: "
-        "stay, random_motion, random, greedy_full_task, scenario4_planner, human_keyboard, greedy_human_model"
+        "stay, random_motion, random, greedy_full_task, generic_task_planner, "
+        "scenario4_planner, human_keyboard, greedy_human_model"
     )
 
 

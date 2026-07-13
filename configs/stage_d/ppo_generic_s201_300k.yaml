@@ -1,0 +1,37 @@
+experiment: {name: ppo_generic_s201_300k, seed: 201, device: cpu}
+environment: {layout_name: cramped_room, layout_file: null, horizon: 400, old_dynamics: true, mdp_overrides: {}}
+observation: {type: featurized, include_agent_index: true}
+model: {architecture: mlp_actor_critic, parameters: {hidden_sizes: [128, 128], activation: tanh}}
+training:
+  algorithm: ppo
+  total_steps: 300032
+  num_environments: 8
+  rollout_steps: 128
+  reward_shaping: 1.0
+  ppo: {learning_rate: 0.0003, gamma: 0.99, gae_lambda: 0.95, clip_coefficient: 0.2, value_coefficient: 0.5, entropy_coefficient: 0.01, update_epochs: 4, minibatch_size: 1024, max_grad_norm: 0.5}
+partner:
+  sampler: weighted_pool
+  position_sampler: balanced
+  policies:
+    - {name: greedy, weight: 0.35, policy: {type: builtin, name: greedy_full_task, max_action_time_ms: 100}}
+    - {name: sticky, weight: 0.25, policy: {type: builtin, name: greedy_full_task, sticky_action_prob: 0.10, max_action_time_ms: 100}}
+    - {name: noisy, weight: 0.20, policy: {type: builtin, name: greedy_full_task, sticky_action_prob: 0.10, random_action_prob: 0.10, max_action_time_ms: 100}}
+    - {name: random_motion, weight: 0.10, policy: {type: builtin, name: random_motion, max_action_time_ms: 100}}
+    - {name: stay, weight: 0.10, policy: {type: builtin, name: stay, max_action_time_ms: 100}}
+evaluation:
+  layouts: [cramped_room, asymmetric_advantages, coordination_ring, counter_circuit, {layout_file: ../layouts/scenario_4.layout}]
+  partners:
+    - {name: greedy, policy: {type: builtin, name: greedy_full_task, max_action_time_ms: 100}}
+    - {name: sticky, policy: {type: builtin, name: greedy_full_task, sticky_action_prob: 0.10, max_action_time_ms: 100}}
+    - {name: noisy, policy: {type: builtin, name: greedy_full_task, sticky_action_prob: 0.10, random_action_prob: 0.10, max_action_time_ms: 100}}
+    - {name: random_motion, policy: {type: builtin, name: random_motion, max_action_time_ms: 100}}
+    - {name: stay, policy: {type: builtin, name: stay, max_action_time_ms: 100}}
+  seeds: [301, 302, 303]
+  player_positions: [0, 1]
+  inference_modes: [deterministic, stochastic]
+checkpoint: {resume_from: null, save_interval: 100352, export_path: ../../outputs/ppo_generic_s201_300k/checkpoints/inference.pt}
+outputs:
+  root: ../../outputs/ppo_generic_s201_300k
+  logs: ../../outputs/ppo_generic_s201_300k/logs
+  checkpoints: ../../outputs/ppo_generic_s201_300k/checkpoints
+  metrics: ../../outputs/ppo_generic_s201_300k/metrics

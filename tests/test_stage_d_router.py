@@ -66,8 +66,8 @@ def test_stage_d_mapping_covers_known_layouts_and_explicit_fallback(project_root
         ("counter_circuit", 1): "cc_exact_long_seed3_step1902592",
         ("scenario_4", 0): "scenario4_exact_fixed_pot_b",
         ("scenario_4", 1): "scenario4_exact_fixed_pot_b",
-        ("unseen_layout", 0): "generic_greedy_fallback",
-        ("unseen_layout", 1): "generic_greedy_fallback",
+        ("unseen_layout", 0): "generic_task_planner_recovery",
+        ("unseen_layout", 1): "generic_task_planner_recovery",
     }
 
     for route, specialist_id in expected.items():
@@ -172,6 +172,6 @@ def test_stage_d_clean_process_smoke_runs_every_mapped_specialist(
     )
     summary = json.loads((tmp_path / "smoke" / "summary.json").read_text())
     assert summary["status"] == "complete", completed.stderr
-    assert len(summary["routes"]) == 6
+    assert len(summary["routes"]) == 8
     assert all(route["timeouts"] == 0 for route in summary["routes"])
     assert all(route["invalid_actions"] == [0, 0] for route in summary["routes"])

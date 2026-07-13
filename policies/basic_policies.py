@@ -73,6 +73,8 @@ class GreedyFullTaskPolicy(Agent):
         ingredient: str = "onion",
         avoid_teammate: bool = True,
         seed: int | None = None,
+        profile: str = "balanced",
+        recovery_steps: int = 4,
     ):
         super().__init__()
         if ingredient not in {"onion", "tomato"}:
@@ -80,6 +82,27 @@ class GreedyFullTaskPolicy(Agent):
         self.ingredient = ingredient
         self.avoid_teammate = bool(avoid_teammate)
         self.rng = np.random.default_rng(seed)
+        self.profile = str(profile).strip().lower()
+        if self.profile not in {
+            "balanced",
+            "aggressive",
+            "collision_aware",
+            "partner_aware",
+            "conservative",
+            "handoff",
+            "recovery",
+        }:
+            raise ValueError(f"Unsupported greedy task profile: {profile}")
+        self.recovery_steps = max(1, int(recovery_steps))
+        self._last_position: tuple[int, int] | None = None
+        self._last_target: tuple[int, int] | None = None
+        self._stalled_steps = 0
+
+    def reset(self) -> None:
+        super().reset()
+        self._last_position = None
+        self._last_target = None
+        self._stalled_steps = 0
 
     def action(self, state):
         mdp = self.mdp
@@ -91,9 +114,20 @@ class GreedyFullTaskPolicy(Agent):
             if target is None:
                 return Action.STAY, {"policy_name": "greedy_full_task", "target": None}
 
+            if self.profile == "recovery" and self._is_stalled(player.position, target):
+                recovery = self._recovery_action(state)
+                if recovery is not None:
+                    return recovery, {
+                        "policy_name": "greedy_full_task",
+                        "profile": self.profile,
+                        "target": target,
+                        "recovery": True,
+                    }
+
             action = self._move_or_interact_towards(state, target)
             return action, {
                 "policy_name": "greedy_full_task",
+                "profile": self.profile,
                 "held_object": None if held is None else held.name,
                 "target": target,
             }
@@ -114,6 +148,31 @@ class GreedyFullTaskPolicy(Agent):
         player = state.players[self.agent_index]
         held = player.held_object
         pot_states = mdp.get_pot_states(state)
+
+        partner = state.players[1 - self.agent_index]
+        partner_held = None if partner.held_object is None else partner.held_object.name
+        if held is None and self.profile == "conservative" and partner_held is not None:
+            return None
+        if held is None and self.profile in {"partner_aware", "handoff"}:
+            if partner_held == "soup":
+                candidates = self._pots_that_can_accept_ingredients(state, pot_states)
+                if candidates:
+                    dispensers = self._ingredient_dispenser_locations()
+                    if dispensers:
+                        return self._nearest(player.position, dispensers)
+                return None
+            if partner_held == "dish":
+                candidates = self._pots_that_can_accept_ingredients(state, pot_states)
+                if candidates:
+                    dispensers = self._ingredient_dispenser_locations()
+                    if dispensers:
+                        return self._nearest(player.position, dispensers)
+            if self.profile == "handoff" and partner_held in {"onion", "tomato"}:
+                ready_pots = list(pot_states.get("ready", []))
+                if ready_pots:
+                    dishes = list(mdp.get_dish_dispenser_locations())
+                    if dishes:
+                        return self._nearest(player.position, dishes)
 
         if held is not None:
             if held.name == "soup":
@@ -168,6 +227,31 @@ class GreedyFullTaskPolicy(Agent):
             if dish_disps:
                 return self._nearest(player.position, dish_disps)
 
+        return None
+
+    def _is_stalled(
+        self,
+        position: tuple[int, int],
+        target: tuple[int, int],
+    ) -> bool:
+        if position == self._last_position and target == self._last_target:
+            self._stalled_steps += 1
+        else:
+            self._stalled_steps = 0
+        self._last_position = position
+        self._last_target = target
+        return self._stalled_steps >= self.recovery_steps
+
+    def _recovery_action(self, state):
+        """Move to a free neighbour after repeated unchanged planning state."""
+        player = state.players[self.agent_index]
+        valid_positions = set(self.mdp.get_valid_player_positions())
+        teammate_position = state.players[1 - self.agent_index].position
+        for direction in Direction.ALL_DIRECTIONS:
+            candidate = Action.move_in_direction(player.position, direction)
+            if candidate in valid_positions and candidate != teammate_position:
+                self._stalled_steps = 0
+                return Action.determine_action_for_change_in_pos(player.position, candidate)
         return None
 
     def _ingredient_dispenser_locations(self) -> list[tuple[int, int]]:
