@@ -7,7 +7,7 @@ self-play implementation. The inference submission remains a normal
 
 ## Setup
 
-Python 3.10 or 3.11 is supported. The repository pins Overcooked-AI 1.1.0,
+Python 3.10, 3.11, or 3.12 is supported. The repository pins Overcooked-AI 1.1.0,
 keeps NumPy below 2, and uses PyTorch for both learning and inference.
 SciPy is declared explicitly because Overcooked-AI 1.1.0 imports it without
 including it in its published dependency metadata.
