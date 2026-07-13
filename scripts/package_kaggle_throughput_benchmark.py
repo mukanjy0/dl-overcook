@@ -32,9 +32,9 @@ from dataclasses import replace
 from pathlib import Path
 
 
-PROJECT_ARCHIVE = Path("/kaggle/working/project.zip")
+PROJECT_ARCHIVE = Path("/tmp/overcook_ppo_benchmark/project.zip")
 PROJECT_ARCHIVE_B64 = __PROJECT_ARCHIVE_B64__
-PROJECT = Path("/kaggle/working/project")
+PROJECT = Path("/tmp/overcook_ppo_benchmark/project")
 CONFIG_PATH = PROJECT / __CONFIG_RELATIVE__
 OUTPUT_ROOT = Path("/kaggle/working/benchmark")
 TRAINING_ROOT = OUTPUT_ROOT / "training"
@@ -161,12 +161,26 @@ try:
     if PROJECT.exists():
         shutil.rmtree(PROJECT)
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
+    PROJECT_ARCHIVE.parent.mkdir(parents=True, exist_ok=True)
     PROJECT_ARCHIVE.write_bytes(base64.b64decode(PROJECT_ARCHIVE_B64))
     shutil.unpack_archive(PROJECT_ARCHIVE, PROJECT)
     sys.path.insert(0, str(PROJECT))
     archive_setup_seconds = time.perf_counter() - phase_started_at
 
     phase_started_at = time.perf_counter()
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--disable-pip-version-check",
+            "--index-url",
+            "https://download.pytorch.org/whl/cu124",
+            "torch==2.5.1",
+        ],
+        check=True,
+    )
     subprocess.run(
         [
             sys.executable,
