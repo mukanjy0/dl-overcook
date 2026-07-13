@@ -58,9 +58,10 @@ versioned package under `kaggle/vN/`.
 
 ## Immutable CPU-versus-GPU benchmark
 
-The paired benchmark packager archives the requested commit directly with
-`git archive`. It generates an identical `main.py` for CPU and T4; only kernel
-identity and accelerator metadata differ.
+The paired benchmark packager archives the requested commit's runtime paths
+directly with `git archive`. Runtime-irrelevant papers and generated files are
+excluded to stay under Kaggle's script-size limit. It generates an identical
+`main.py` for CPU and T4; only kernel identity and accelerator metadata differ.
 
 ```bash
 .venv/bin/python scripts/package_kaggle_throughput_benchmark.py \

@@ -407,9 +407,17 @@ except Exception as exc:
 
 
 def archive_commit(project_root: Path, commit: str) -> bytes:
-    """Return one immutable repository snapshot as a zip archive."""
+    """Return the immutable runtime subset of a repository snapshot."""
+    runtime_paths = (
+        "src",
+        "policies",
+        "configs",
+        "pyproject.toml",
+        "uv.lock",
+        "README.md",
+    )
     result = subprocess.run(
-        ["git", "archive", "--format=zip", commit],
+        ["git", "archive", "--format=zip", commit, "--", *runtime_paths],
         cwd=project_root,
         check=True,
         capture_output=True,
