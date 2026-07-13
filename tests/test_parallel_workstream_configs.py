@@ -162,3 +162,30 @@ def test_counter_circuit_stage_b_matrix_changes_only_reset_distribution(
         assert config.checkpoint.load_optimizer_state is False
         assert config.checkpoint.restore_rng_state is False
         assert config.experiment.device == "cpu"
+
+
+def test_counter_circuit_long_stage_c_branches_change_only_seed(
+    project_root: Path,
+) -> None:
+    branches = [
+        load_experiment_config(
+            project_root / f"configs/stage_c/counter_circuit_exact_long_seed{seed}_1m.yaml"
+        )
+        for seed in (2, 3)
+    ]
+    reference = branches[0]
+
+    for branch in branches:
+        assert branch.training.total_steps - 1400832 == 1000448
+        assert branch.training.total_steps == 2401280
+        assert branch.training == reference.training
+        assert branch.environment == reference.environment
+        assert branch.model == reference.model
+        assert branch.partner == reference.partner
+        assert branch.evaluation == reference.evaluation
+        assert branch.checkpoint.load_optimizer_state is False
+        assert branch.checkpoint.restore_rng_state is False
+        assert branch.checkpoint.save_interval == 100352
+        assert branch.experiment.device == "cpu"
+
+    assert {branch.experiment.seed for branch in branches} == {2, 3}
