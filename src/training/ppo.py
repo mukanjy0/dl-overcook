@@ -19,6 +19,8 @@ class PPOConfig:
     clip_coefficient: float = 0.2
     value_coefficient: float = 0.5
     entropy_coefficient: float = 0.01
+    entropy_final_coefficient: float | None = None
+    entropy_anneal_steps: int | None = None
     update_epochs: int = 4
     minibatch_size: int = 256
     max_grad_norm: float = 0.5
@@ -33,6 +35,16 @@ class PPOConfig:
             clip_coefficient=float(values.get("clip_coefficient", 0.2)),
             value_coefficient=float(values.get("value_coefficient", 0.5)),
             entropy_coefficient=float(values.get("entropy_coefficient", 0.01)),
+            entropy_final_coefficient=(
+                None
+                if values.get("entropy_final_coefficient") is None
+                else float(values["entropy_final_coefficient"])
+            ),
+            entropy_anneal_steps=(
+                None
+                if values.get("entropy_anneal_steps") is None
+                else int(values["entropy_anneal_steps"])
+            ),
             update_epochs=int(values.get("update_epochs", 4)),
             minibatch_size=int(values.get("minibatch_size", 256)),
             max_grad_norm=float(values.get("max_grad_norm", 0.5)),
@@ -41,7 +53,26 @@ class PPOConfig:
             raise ValueError("PPO learning_rate, update_epochs, and minibatch_size must be positive")
         if not (0.0 <= config.gamma <= 1.0 and 0.0 <= config.gae_lambda <= 1.0):
             raise ValueError("PPO gamma and gae_lambda must be in [0, 1]")
+        if config.entropy_coefficient < 0:
+            raise ValueError("PPO entropy_coefficient must be non-negative")
+        if (
+            config.entropy_final_coefficient is not None
+            and config.entropy_final_coefficient < 0
+        ):
+            raise ValueError("PPO entropy_final_coefficient must be non-negative")
+        if config.entropy_anneal_steps is not None and config.entropy_anneal_steps <= 0:
+            raise ValueError("PPO entropy_anneal_steps must be positive")
         return config
+
+    def entropy_coefficient_at(self, environment_steps: int, total_steps: int) -> float:
+        """Return the linearly annealed entropy coefficient for one update."""
+        if self.entropy_final_coefficient is None:
+            return self.entropy_coefficient
+        anneal_steps = self.entropy_anneal_steps or total_steps
+        progress = min(max(float(environment_steps) / float(anneal_steps), 0.0), 1.0)
+        return self.entropy_coefficient + progress * (
+            self.entropy_final_coefficient - self.entropy_coefficient
+        )
 
 
 class PPOUpdater:
@@ -57,7 +88,17 @@ class PPOUpdater:
         self.optimizer = optimizer
         self.config = config
 
-    def update(self, rollout: RolloutBatch) -> dict[str, float]:
+    def update(
+        self,
+        rollout: RolloutBatch,
+        *,
+        entropy_coefficient: float | None = None,
+    ) -> dict[str, float]:
+        effective_entropy_coefficient = (
+            self.config.entropy_coefficient
+            if entropy_coefficient is None
+            else float(entropy_coefficient)
+        )
         data = rollout.flattened()
         advantages = data["advantages"]
         advantages = (advantages - advantages.mean()) / (advantages.std(unbiased=False) + 1e-8)
@@ -97,7 +138,7 @@ class PPOUpdater:
                 loss = (
                     policy_loss
                     + self.config.value_coefficient * value_loss
-                    - self.config.entropy_coefficient * entropy_mean
+                    - effective_entropy_coefficient * entropy_mean
                 )
 
                 self.optimizer.zero_grad(set_to_none=True)
@@ -122,7 +163,9 @@ class PPOUpdater:
                         )
                     )
 
-        return {
+        result = {
             name: sum(values) / len(values) if values else 0.0
             for name, values in metrics.items()
         }
+        result["entropy_coefficient"] = effective_entropy_coefficient
+        return result

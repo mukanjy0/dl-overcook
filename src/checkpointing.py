@@ -59,6 +59,20 @@ class CheckpointLoader:
         return load_inference_artifact(path, device=device)
 
 
+def inspect_training_checkpoint(path: str | Path) -> dict[str, Any]:
+    """Return selection metadata from a trusted resumable checkpoint."""
+    payload = _load_payload(path, weights_only=False)
+    _validate_envelope(payload, TRAINING_PROFILE)
+    trainer_state = payload.get("trainer_state", {}) or {}
+    return {
+        "schema_version": int(payload["schema_version"]),
+        "environment_steps": int(trainer_state.get("environment_steps", 0)),
+        "update": int(trainer_state.get("update", 0)),
+        "observation": payload.get("observation", {}),
+        "environment": payload.get("environment", {}),
+    }
+
+
 def _package_version(name: str) -> str | None:
     try:
         return importlib.metadata.version(name)

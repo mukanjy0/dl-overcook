@@ -50,6 +50,21 @@ through `build_policy`, tests both positions, and reports sparse return,
 delivery events, timeout/invalid-action replacements, and the canonical
 official score.
 
+For checkpoint-aware runs, add `--evaluate-checkpoints`. This exports and
+evaluates every saved checkpoint in the configured deterministic and stochastic
+modes, from both ego positions, then copies the selected training and inference
+artifacts below `checkpoint_evaluation/selected/`:
+
+```bash
+.venv/bin/python scripts/train.py \
+  --config configs/stage_a/ablation_baseline_200k.yaml \
+  --evaluate-checkpoints
+```
+
+Selection first maximizes deterministic minimum-position official score, then
+deterministic mean official score. Stochastic metrics are diagnostic
+and do not override deployment selection.
+
 ## Kaggle GPU execution
 
 Local smoke tests should pass before packaging. The packager follows the

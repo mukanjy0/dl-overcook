@@ -235,7 +235,17 @@ def train(
             gamma=ppo_config.gamma,
             gae_lambda=ppo_config.gae_lambda,
         )
-        update_metrics = updater.update(rollout)
+        entropy_coefficient = ppo_config.entropy_coefficient_at(
+            min(
+                int(trainer_state["environment_steps"]) + rollout.num_environment_steps,
+                config.training.total_steps,
+            ),
+            config.training.total_steps,
+        )
+        update_metrics = updater.update(
+            rollout,
+            entropy_coefficient=entropy_coefficient,
+        )
         trainer_state["update"] = int(trainer_state["update"]) + 1
         trainer_state["environment_steps"] = (
             int(trainer_state["environment_steps"]) + rollout.num_environment_steps
@@ -302,7 +312,7 @@ def train(
         mean_return = record["mean_completed_sparse_return"]
         LOGGER.info(
             "progress=%6.2f%% update=%d steps=%d/%d rate=%.1f env_steps/s "
-            "eta=%s sparse_return=%s policy_loss=%.4f value_loss=%.4f",
+            "eta=%s sparse_return=%s policy_loss=%.4f value_loss=%.4f entropy_coef=%.5f",
             progress_percent,
             record["update"],
             record["environment_steps"],
@@ -312,6 +322,7 @@ def train(
             "n/a" if mean_return is None else f"{mean_return:.2f}",
             record["policy_loss"],
             record["value_loss"],
+            record["entropy_coefficient"],
         )
 
     final_checkpoint = _checkpoint(

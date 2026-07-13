@@ -97,3 +97,11 @@ def test_runtime_relative_path_opt_in_resolves_policy_assets(tmp_path: Path) -> 
     assert loaded["policies"]["agent_0"]["config"]["checkpoint_path"] == str(
         (tmp_path / "model.pt").resolve()
     )
+
+
+def test_agent_index_observation_is_configurable(tmp_path: Path) -> None:
+    raw = _training_config()
+    raw["observation"]["include_agent_index"] = False
+    path = tmp_path / "no_index.yaml"
+    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+    assert load_experiment_config(path).observation.include_agent_index is False

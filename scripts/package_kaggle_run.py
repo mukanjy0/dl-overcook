@@ -71,18 +71,21 @@ try:
         str(CONFIG_PATH),
         "--output-root",
         str(OUTPUT_ROOT),
+        "--evaluate-checkpoints",
     ]
     result = subprocess.run(command, check=False)
     if result.returncode != 0:
         raise RuntimeError(f"Training command exited with code {{result.returncode}}")
-    training_summary = json.loads((OUTPUT_ROOT / "run_summary.json").read_text(encoding="utf-8"))
+    experiment_summary = json.loads(
+        (OUTPUT_ROOT / "experiment_summary.json").read_text(encoding="utf-8")
+    )
     write_summary(
         "complete",
         config=str(CONFIG_PATH),
         output_root=str(OUTPUT_ROOT),
         cuda_device=torch.cuda.get_device_name(0),
         torch_version=str(torch.__version__),
-        training=training_summary,
+        experiment=experiment_summary,
     )
 except Exception as exc:
     write_summary(

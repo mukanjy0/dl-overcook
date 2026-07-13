@@ -36,6 +36,11 @@ demonstrations, rendering, or Kaggle code.
   sampling. Stage A exposes only current-policy self-play.
 - `src/evaluation/` owns layout/partner/seed/position suites built on the normal
   runner. Canonical compatibility evaluation loads the ego via `build_policy`.
+  Suite reports separate deterministic and stochastic inference and summarize
+  soup counts, official scores, and zero-soup rates by ego position.
+- `src/evaluation/checkpoint_selection.py` exports and evaluates every saved
+  training checkpoint. It selects deployment artifacts lexicographically by
+  deterministic minimum-position score and deterministic mean official score.
 - `src/checkpointing.py` is the only checkpoint serialization and validation
   boundary.
 - `src/experiment_config.py` validates Stage A training configuration and
@@ -91,6 +96,12 @@ Local `.venv` and Kaggle use the same `scripts/train.py` and YAML. Kaggle only
 overrides the output root and records the effective dependency/CUDA state and a
 durable summary. Important remote artifacts must be downloaded; temporary
 Kaggle storage is not their only intended copy.
+
+`observation.include_agent_index` controls the explicit physical-player one-hot
+stored in the checkpoint observation contract. PPO entropy can remain constant,
+or linearly anneal when `entropy_final_coefficient` and optionally
+`entropy_anneal_steps` are set under `training.ppo`. Each training metrics record
+contains the effective entropy coefficient used for that update.
 
 ## Later extension points
 

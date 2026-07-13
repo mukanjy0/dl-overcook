@@ -75,3 +75,19 @@ def test_builtin_random_policy_receives_effective_seed() -> None:
     first_actions = [first.action(env.state)[0] for _ in range(5)]
     second_actions = [second.action(env.state)[0] for _ in range(5)]
     assert first_actions == second_actions
+
+
+def test_dual_mode_suite_reports_position_metrics(tmp_path: Path) -> None:
+    config = _runtime_config(tmp_path / "dual")
+    config["evaluation"]["inference_modes"] = ["deterministic", "stochastic"]
+    report = evaluate_from_config(config)
+
+    assert report["num_rollouts"] == 8
+    assert set(report["modes"]) == {"deterministic", "stochastic"}
+    for mode in report["modes"].values():
+        assert set(mode["position_metrics"]) == {"0", "1"}
+        assert mode["min_position_score"] <= mode["mean_position_score"]
+        for position in mode["position_metrics"].values():
+            assert len(position["soup_counts"]) == 2
+            assert len(position["official_scores"]) == 2
+            assert 0.0 <= position["zero_soup_rate"] <= 1.0

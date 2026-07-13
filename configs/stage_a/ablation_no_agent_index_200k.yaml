@@ -1,5 +1,5 @@
 experiment:
-  name: stage_a_asymmetric_smoke
+  name: asymmetric_ablation_no_agent_index_200k
   seed: 67
   device: cuda
 
@@ -12,7 +12,7 @@ environment:
 
 observation:
   type: featurized
-  include_agent_index: true
+  include_agent_index: false
 
 model:
   architecture: mlp_actor_critic
@@ -22,9 +22,9 @@ model:
 
 training:
   algorithm: ppo
-  total_steps: 8192
+  total_steps: 200000
   num_environments: 8
-  rollout_steps: 64
+  rollout_steps: 128
   reward_shaping: 1.0
   ppo:
     learning_rate: 0.0003
@@ -34,7 +34,7 @@ training:
     value_coefficient: 0.5
     entropy_coefficient: 0.01
     update_epochs: 4
-    minibatch_size: 512
+    minibatch_size: 1024
     max_grad_norm: 0.5
 
 partner:
@@ -49,17 +49,17 @@ evaluation:
         type: builtin
         name: greedy_full_task
         max_action_time_ms: 100
-  seeds: [67, 68, 69]
+  seeds: [67, 68, 69, 70, 71]
   player_positions: [0, 1]
   inference_modes: [deterministic, stochastic]
 
 checkpoint:
   resume_from: null
-  save_interval: 4096
-  export_path: ../../outputs/stage_a_asymmetric_smoke/checkpoints/inference.pt
+  save_interval: 50000
+  export_path: ../../outputs/asymmetric_ablation_no_agent_index_200k/checkpoints/inference.pt
 
 outputs:
-  root: ../../outputs/stage_a_asymmetric_smoke
-  logs: ../../outputs/stage_a_asymmetric_smoke/logs
-  checkpoints: ../../outputs/stage_a_asymmetric_smoke/checkpoints
-  metrics: ../../outputs/stage_a_asymmetric_smoke/metrics
+  root: ../../outputs/asymmetric_ablation_no_agent_index_200k
+  logs: ../../outputs/asymmetric_ablation_no_agent_index_200k/logs
+  checkpoints: ../../outputs/asymmetric_ablation_no_agent_index_200k/checkpoints
+  metrics: ../../outputs/asymmetric_ablation_no_agent_index_200k/metrics
