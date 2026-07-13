@@ -38,20 +38,26 @@ def import_class_from_file(path: str | Path, class_name: str):
         raise PolicyLoadError(f"Class '{class_name}' not found in {path}") from exc
 
 
-def build_builtin_agent(name: str, env, policy_config: dict[str, Any] | None = None):
+def build_builtin_agent(
+    name: str,
+    env,
+    policy_config: dict[str, Any] | None = None,
+    seed: int | None = None,
+):
     policy_config = policy_config or {}
     key = str(name).strip().lower()
+    policy_seed = policy_config.get("seed", seed)
 
     # Local readable baselines provided with this starter code.
     if key == "stay":
         return StayPolicy()
     if key == "random_motion":
-        return RandomMotionPolicy(seed=policy_config.get("seed"))
+        return RandomMotionPolicy(seed=policy_seed)
     if key == "greedy_full_task":
         return GreedyFullTaskPolicy(
             ingredient=policy_config.get("ingredient", "onion"),
             avoid_teammate=policy_config.get("avoid_teammate", True),
-            seed=policy_config.get("seed"),
+            seed=policy_seed,
         )
     if key == "human_keyboard":
         return HumanKeyboardPolicy(
@@ -79,7 +85,12 @@ def build_policy(policy_config: dict[str, Any], env, obs_builder: ObservationBui
     if policy_type == "builtin":
         if "name" not in policy_config:
             raise PolicyLoadError("Builtin policy requires field 'name'")
-        base_agent = build_builtin_agent(policy_config["name"], env, policy_config=policy_config)
+        base_agent = build_builtin_agent(
+            policy_config["name"],
+            env,
+            policy_config=policy_config,
+            seed=seed,
+        )
     elif policy_type == "python_class":
         if "path" not in policy_config:
             raise PolicyLoadError("python_class policy requires field 'path'")

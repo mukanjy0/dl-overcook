@@ -9,8 +9,8 @@ from __future__ import annotations
 import argparse
 import json
 
-from src.config import load_yaml
-from src.runner import run_from_config
+from src.evaluation.evaluator import evaluate_from_config
+from src.experiment_config import load_runtime_config
 
 
 def main():
@@ -18,8 +18,8 @@ def main():
     parser.add_argument("--config", type=str, default="configs/evaluate.yaml")
     args = parser.parse_args()
 
-    config = load_yaml(args.config)
-    result = run_from_config(config)
+    config = load_runtime_config(args.config)
+    result = evaluate_from_config(config)
     print(json.dumps(result, indent=2))
 
 

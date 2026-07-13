@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+
+import numpy as np
 
 from overcooked_ai_py.mdp.overcooked_env import OvercookedEnv
 from overcooked_ai_py.mdp.overcooked_mdp import OvercookedGridworld
@@ -73,8 +75,26 @@ def build_mdp(environment_config: dict[str, Any]) -> OvercookedGridworld:
     return OvercookedGridworld.from_layout_name(str(layout_name), **mdp_overwrites)
 
 
-def build_env(environment_config: dict[str, Any]) -> OvercookedEnv:
-    """Build the OvercookedEnv wrapper."""
+def build_env(
+    environment_config: dict[str, Any],
+    *,
+    start_state_fn: Callable[[], Any] | None = None,
+    state_source: Any | None = None,
+    rng: np.random.Generator | None = None,
+) -> OvercookedEnv:
+    """Build the OvercookedEnv wrapper with an optional reset-state source."""
+    if start_state_fn is not None and state_source is not None:
+        raise ValueError("Pass start_state_fn or state_source, not both")
     mdp = build_mdp(environment_config)
+    if state_source is not None:
+        from src.state_initialization import build_start_state_fn
+
+        rng = np.random.default_rng() if rng is None else rng
+        start_state_fn = build_start_state_fn(state_source, mdp, rng)
     horizon = int(environment_config.get("horizon", 400))
-    return OvercookedEnv.from_mdp(mdp, horizon=horizon, info_level=0)
+    return OvercookedEnv.from_mdp(
+        mdp,
+        horizon=horizon,
+        info_level=0,
+        start_state_fn=start_state_fn,
+    )

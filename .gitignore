@@ -1,0 +1,17 @@
+.DS_Store
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+outputs/
+runs/
+checkpoints/
+data/demonstrations/
+*.gif
+
+kaggle/*/outputs/
+kaggle/*/input/project/
