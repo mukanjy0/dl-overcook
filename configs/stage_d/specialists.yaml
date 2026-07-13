@@ -76,3 +76,18 @@ layouts:
           invalid_action: stay
           timeout_action: stay
       "1": *cc_specialist
+
+  scenario_4:
+    positions:
+      "0": &scenario4_fixed_b
+        id: scenario4_exact_fixed_pot_b
+        policy:
+          type: builtin
+          name: scenario4_planner
+          pot_strategy: fixed_b
+          blocked_threshold: 999
+          avoid_teammate: false
+          max_action_time_ms: 100
+          invalid_action: stay
+          timeout_action: stay
+      "1": *scenario4_fixed_b

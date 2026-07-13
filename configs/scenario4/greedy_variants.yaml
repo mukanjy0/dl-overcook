@@ -1,0 +1,15 @@
+seed_start: 0
+num_seeds: 30
+variants:
+  - name: fixed_pot_a_block3
+    policy: {pot_strategy: fixed_a, blocked_threshold: 3, avoid_teammate: true}
+  - name: fixed_pot_b_block3
+    policy: {pot_strategy: fixed_b, blocked_threshold: 3, avoid_teammate: true}
+  - name: nearest_block2
+    policy: {pot_strategy: nearest, blocked_threshold: 2, avoid_teammate: true}
+  - name: nearest_block5
+    policy: {pot_strategy: nearest, blocked_threshold: 5, avoid_teammate: true}
+  - name: conservative
+    policy: {pot_strategy: conservative, blocked_threshold: 3, avoid_teammate: true}
+  - name: two_pot
+    policy: {pot_strategy: two_pot, blocked_threshold: 3, avoid_teammate: true}

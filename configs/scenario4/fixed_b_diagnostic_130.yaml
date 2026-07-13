@@ -1,0 +1,5 @@
+seed_start: 130
+num_seeds: 100
+variants:
+  - name: exact_fixed_b_seed130_229
+    policy: {pot_strategy: fixed_b, blocked_threshold: 999, avoid_teammate: false}
