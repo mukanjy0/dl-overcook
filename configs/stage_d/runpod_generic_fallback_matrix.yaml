@@ -1,0 +1,26 @@
+repository:
+  source: archive
+  commit: HEAD
+  setup_command: UV_CONCURRENT_DOWNLOADS=4 UV_CONCURRENT_INSTALLS=4 uv sync --frozen
+pod:
+  image: runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
+  compute_type: CPU
+  cpu_flavor_ids: [CPU5C]
+  vcpu_count: 4
+  cpu_flavor_priority: custom
+  cloud_type: SECURE
+  interruptible: false
+  container_disk_gb: 30
+  volume_gb: 20
+  volume_mount_path: /workspace
+  readiness_timeout_minutes: 15
+  extra_env: {PYTHONUNBUFFERED: "1"}
+jobs:
+  - {name: generic-greedy-baseline, config: configs/stage_d/generic_fallback_tournament.yaml, command: "timeout 3000 .venv/bin/python scripts/evaluate_fallback_tournament.py --config {config} --policy-name greedy_full_task --profile balanced --output-dir outputs/generic_fallback/greedy_baseline", artifact_paths: [outputs/generic_fallback/greedy_baseline]}
+  - {name: planner-balanced, config: configs/stage_d/generic_fallback_tournament.yaml, command: "timeout 3000 .venv/bin/python scripts/evaluate_fallback_tournament.py --config {config} --profile balanced --output-dir outputs/generic_fallback/planner_balanced", artifact_paths: [outputs/generic_fallback/planner_balanced]}
+  - {name: planner-aggressive, config: configs/stage_d/generic_fallback_tournament.yaml, command: "timeout 3000 .venv/bin/python scripts/evaluate_fallback_tournament.py --config {config} --profile aggressive --output-dir outputs/generic_fallback/planner_aggressive", artifact_paths: [outputs/generic_fallback/planner_aggressive]}
+  - {name: planner-collision-aware, config: configs/stage_d/generic_fallback_tournament.yaml, command: "timeout 3000 .venv/bin/python scripts/evaluate_fallback_tournament.py --config {config} --profile collision_aware --output-dir outputs/generic_fallback/planner_collision_aware", artifact_paths: [outputs/generic_fallback/planner_collision_aware]}
+  - {name: planner-partner-aware, config: configs/stage_d/generic_fallback_tournament.yaml, command: "timeout 3000 .venv/bin/python scripts/evaluate_fallback_tournament.py --config {config} --profile partner_aware --output-dir outputs/generic_fallback/planner_partner_aware", artifact_paths: [outputs/generic_fallback/planner_partner_aware]}
+  - {name: planner-conservative, config: configs/stage_d/generic_fallback_tournament.yaml, command: "timeout 3000 .venv/bin/python scripts/evaluate_fallback_tournament.py --config {config} --profile conservative --output-dir outputs/generic_fallback/planner_conservative", artifact_paths: [outputs/generic_fallback/planner_conservative]}
+  - {name: planner-handoff, config: configs/stage_d/generic_fallback_tournament.yaml, command: "timeout 3000 .venv/bin/python scripts/evaluate_fallback_tournament.py --config {config} --profile handoff --output-dir outputs/generic_fallback/planner_handoff", artifact_paths: [outputs/generic_fallback/planner_handoff]}
+  - {name: planner-recovery, config: configs/stage_d/generic_fallback_tournament.yaml, command: "timeout 3000 .venv/bin/python scripts/evaluate_fallback_tournament.py --config {config} --profile recovery --output-dir outputs/generic_fallback/planner_recovery", artifact_paths: [outputs/generic_fallback/planner_recovery]}
