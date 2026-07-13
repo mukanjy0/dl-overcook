@@ -46,6 +46,8 @@ def test_kaggle_package_uses_skill_layout_and_shared_entrypoint(
     ast.parse(generated_main)
     assert "run_summary.json" in generated_main
     assert "scripts\" / \"train.py" in generated_main
+    assert "PROJECT_ARCHIVE_B64" in generated_main
+    assert "base64.b64decode(PROJECT_ARCHIVE_B64)" in generated_main
     assert "shutil.unpack_archive(PROJECT_ARCHIVE, PROJECT)" in generated_main
 
     metadata = json.loads(

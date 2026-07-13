@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import re
 import shutil
@@ -12,6 +13,7 @@ from pathlib import Path
 KAGGLE_MAIN = '''"""Generated Kaggle orchestration; core logic remains in project/scripts/train.py."""
 from __future__ import annotations
 
+import base64
 import json
 import shutil
 import subprocess
@@ -19,7 +21,8 @@ import sys
 import traceback
 from pathlib import Path
 
-PROJECT_ARCHIVE = Path(__file__).resolve().parent / "project.zip"
+PROJECT_ARCHIVE = Path("/kaggle/working/project.zip")
+PROJECT_ARCHIVE_B64 = {project_archive_b64!r}
 PROJECT = Path("/kaggle/working/project")
 OUTPUT_ROOT = Path("/kaggle/working/stage_a")
 SUMMARY_PATH = Path("/kaggle/working/run_summary.json")
@@ -35,6 +38,7 @@ write_summary("running", config=str(CONFIG_PATH), output_root=str(OUTPUT_ROOT))
 try:
     if PROJECT.exists():
         shutil.rmtree(PROJECT)
+    PROJECT_ARCHIVE.write_bytes(base64.b64decode(PROJECT_ARCHIVE_B64))
     shutil.unpack_archive(PROJECT_ARCHIVE, PROJECT)
     subprocess.run(
         [
@@ -143,8 +147,14 @@ def package_run(
         "zip",
         root_dir=project_dir,
     )
+    project_archive_b64 = base64.b64encode(
+        (input_dir / "project.zip").read_bytes()
+    ).decode("ascii")
     (input_dir / "main.py").write_text(
-        KAGGLE_MAIN.format(config_relative=config_relative),
+        KAGGLE_MAIN.format(
+            config_relative=config_relative,
+            project_archive_b64=project_archive_b64,
+        ),
         encoding="utf-8",
     )
     metadata = {
