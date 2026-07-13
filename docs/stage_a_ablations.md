@@ -36,3 +36,25 @@ Run locally or remotely through the same entry point:
   --config configs/stage_a/ablation_baseline_200k.yaml \
   --evaluate-checkpoints
 ```
+
+## Initial 200k result
+
+All four runs completed 200,704 actual environment steps and evaluated five
+saved checkpoints. Their selected final checkpoints produced the following
+five-seed results against `greedy_full_task`:
+
+| Variant | Deterministic pos. 0 soups / score | Deterministic pos. 1 soups / score | Stochastic pos. 0 soups / score | Stochastic pos. 1 soups / score |
+| --- | ---: | ---: | ---: | ---: |
+| Baseline | 1.0 / 14,026 | 0.0 / 0 | 2.0 / 22,554.0 | 1.6 / 19,345.0 |
+| No agent index | 1.0 / 14,026 | 0.0 / 0 | 5.4 / 56,322.0 | 1.6 / 19,376.6 |
+| Entropy annealing | 1.0 / 14,026 | 0.0 / 0 | 4.2 / 44,232.2 | 1.0 / 13,779.6 |
+| Both changes | 1.0 / 14,026 | 0.0 / 0 | 2.8 / 29,494.2 | 1.0 / 13,623.4 |
+
+Every variant therefore had deterministic minimum-position score 0,
+deterministic mean score 7,013, and a 50% deterministic zero-soup rate. Removing
+the explicit index improved stochastic behavior but did not change argmax
+behavior. The preserved 900,096-step checkpoint also has minimum-position score
+0, but remains the deployment selection through the second criterion with mean
+score 65,273. Extending any unchanged 200k recipe is not supported by this
+comparison; the next experiment should change the optimization target rather
+than only add steps.
