@@ -43,14 +43,14 @@ def _environment_for_layout(
     return environment
 
 
-def _partner_entry(entry: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+def _partner_entry(entry: dict[str, Any]) -> tuple[str, dict[str, Any], bool]:
     if not isinstance(entry, dict):
         raise ValueError("Each evaluation partner must be a mapping")
     policy = entry.get("policy", entry)
     if not isinstance(policy, dict):
         raise ValueError("evaluation partner.policy must be a mapping")
     name = str(entry.get("name", policy.get("name", "partner")))
-    return name, deepcopy(policy)
+    return name, deepcopy(policy), bool(entry.get("match_ego_inference_mode", False))
 
 
 def _inference_modes(evaluation: dict[str, Any]) -> list[tuple[str, bool]]:
@@ -154,7 +154,9 @@ def evaluate_from_config(config: dict[str, Any]) -> dict[str, Any]:
         for layout in layouts:
             layout_label = _layout_label(layout)
             for partner_entry in partners:
-                partner_name, partner_policy = _partner_entry(partner_entry)
+                partner_name, partner_policy, match_ego_mode = _partner_entry(
+                    partner_entry
+                )
                 case_config = deepcopy(config)
                 case_config.pop("evaluation", None)
                 case_config["environment"] = _environment_for_layout(
@@ -164,6 +166,10 @@ def evaluate_from_config(config: dict[str, Any]) -> dict[str, Any]:
                 ego_policy = deepcopy(base_policies["agent_0"])
                 if ego_policy.get("type") == "python_class":
                     ego_policy.setdefault("config", {})["deterministic"] = deterministic
+                if match_ego_mode and partner_policy.get("type") == "python_class":
+                    partner_policy.setdefault("config", {})[
+                        "deterministic"
+                    ] = deterministic
                 case_config["policies"] = {
                     "agent_0": ego_policy,
                     "agent_1": partner_policy,

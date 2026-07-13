@@ -127,6 +127,7 @@ def compact_policy_metadata(policies_config: dict[str, Any]) -> dict[str, Any]:
             "ingredient",
             "avoid_teammate",
             "random_action_prob",
+            "sticky_action_prob",
             "max_action_time_ms",
             "invalid_action",
             "timeout_action",

@@ -38,6 +38,10 @@ demonstrations, rendering, or Kaggle code.
   runner. Canonical compatibility evaluation loads the ego via `build_policy`.
   Suite reports separate deterministic and stochastic inference and summarize
   soup counts, official scores, and zero-soup rates by ego position.
+  Checkpoint suites may use the `self_play` partner sentinel to load a second
+  independent session from the artifact currently being evaluated. Configured
+  disclosed partners may apply `sticky_action_prob` and
+  `random_action_prob` through the normal policy-wrapper path.
 - `src/evaluation/checkpoint_selection.py` exports and evaluates every saved
   training checkpoint. It selects deployment artifacts lexicographically by
   deterministic minimum-position score and deterministic mean official score.

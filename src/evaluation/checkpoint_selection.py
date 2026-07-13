@@ -60,6 +60,38 @@ def _runtime_config(
     output_dir: Path,
 ) -> dict[str, Any]:
     policy_path = Path(__file__).resolve().parents[2] / "policies" / "rl_policy.py"
+    ego_policy = {
+        "type": "python_class",
+        "name": "stage_a_checkpoint",
+        "path": str(policy_path),
+        "class_name": "StudentAgent",
+        "config": {
+            "checkpoint_path": str(artifact_path),
+            "device": config.experiment.device,
+            "deterministic": True,
+        },
+        "max_action_time_ms": 100,
+        "invalid_action": "stay",
+        "timeout_action": "stay",
+    }
+    evaluation = deepcopy(config.evaluation)
+    resolved_partners: list[dict[str, Any]] = []
+    for entry in evaluation.get("partners", []):
+        if entry == "self_play" or (
+            isinstance(entry, dict)
+            and entry.get("name") == "self_play"
+            and "policy" not in entry
+        ):
+            resolved_partners.append(
+                {
+                    "name": "self_play",
+                    "policy": deepcopy(ego_policy),
+                    "match_ego_inference_mode": True,
+                }
+            )
+        else:
+            resolved_partners.append(deepcopy(entry))
+    evaluation["partners"] = resolved_partners
     return {
         "seed": config.experiment.seed,
         "environment": deepcopy(config.environment.config),
@@ -68,22 +100,9 @@ def _runtime_config(
             "include_agent_index": config.observation.include_agent_index,
         },
         "policies": {
-            "agent_0": {
-                "type": "python_class",
-                "name": "stage_a_checkpoint",
-                "path": str(policy_path),
-                "class_name": "StudentAgent",
-                "config": {
-                    "checkpoint_path": str(artifact_path),
-                    "device": config.experiment.device,
-                    "deterministic": True,
-                },
-                "max_action_time_ms": 100,
-                "invalid_action": "stay",
-                "timeout_action": "stay",
-            }
+            "agent_0": ego_policy,
         },
-        "evaluation": deepcopy(config.evaluation),
+        "evaluation": evaluation,
         "rendering": {"mode": "none"},
         "logging": {
             "output_dir": str(output_dir),
