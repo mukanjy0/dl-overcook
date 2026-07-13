@@ -1,0 +1,94 @@
+repository:
+  source: archive
+  commit: HEAD
+  setup_command: uv sync --frozen
+pod:
+  image: runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
+  compute_type: CPU
+  cpu_flavor_ids: [CPU5C]
+  vcpu_count: 4
+  cpu_flavor_priority: custom
+  cloud_type: SECURE
+  interruptible: false
+  container_disk_gb: 30
+  volume_gb: 20
+  volume_mount_path: /workspace
+  readiness_timeout_minutes: 15
+  extra_env: {PYTHONUNBUFFERED: "1"}
+jobs:
+  - name: coordination_ring_standard_seed0_200k
+    config: configs/stage_b/coordination_ring_standard_seed0_200k.yaml
+    command: .venv/bin/python scripts/train.py --config {config} --evaluate-checkpoints
+    artifact_paths: [outputs/coordination_ring_standard_seed0_200k]
+  - name: coordination_ring_standard_seed1_200k
+    config: configs/stage_b/coordination_ring_standard_seed1_200k.yaml
+    command: .venv/bin/python scripts/train.py --config {config} --evaluate-checkpoints
+    artifact_paths: [outputs/coordination_ring_standard_seed1_200k]
+  - name: coordination_ring_standard_seed2_200k
+    config: configs/stage_b/coordination_ring_standard_seed2_200k.yaml
+    command: .venv/bin/python scripts/train.py --config {config} --evaluate-checkpoints
+    artifact_paths: [outputs/coordination_ring_standard_seed2_200k]
+  - name: coordination_ring_mixed025_seed0_200k
+    config: configs/stage_b/coordination_ring_mixed025_seed0_200k.yaml
+    command: .venv/bin/python scripts/train.py --config {config} --evaluate-checkpoints
+    artifact_paths: [outputs/coordination_ring_mixed025_seed0_200k]
+    input_paths:
+      - source: outputs/stage_b/buffers/coordination_ring_stage_a_crossplay.json.gz
+        destination: outputs/stage_b/buffers/coordination_ring_stage_a_crossplay.json.gz
+  - name: coordination_ring_mixed025_seed1_200k
+    config: configs/stage_b/coordination_ring_mixed025_seed1_200k.yaml
+    command: .venv/bin/python scripts/train.py --config {config} --evaluate-checkpoints
+    artifact_paths: [outputs/coordination_ring_mixed025_seed1_200k]
+    input_paths:
+      - source: outputs/stage_b/buffers/coordination_ring_stage_a_crossplay.json.gz
+        destination: outputs/stage_b/buffers/coordination_ring_stage_a_crossplay.json.gz
+  - name: coordination_ring_mixed025_seed2_200k
+    config: configs/stage_b/coordination_ring_mixed025_seed2_200k.yaml
+    command: .venv/bin/python scripts/train.py --config {config} --evaluate-checkpoints
+    artifact_paths: [outputs/coordination_ring_mixed025_seed2_200k]
+    input_paths:
+      - source: outputs/stage_b/buffers/coordination_ring_stage_a_crossplay.json.gz
+        destination: outputs/stage_b/buffers/coordination_ring_stage_a_crossplay.json.gz
+  - name: coordination_ring_mixed050_seed0_200k
+    config: configs/stage_b/coordination_ring_mixed050_seed0_200k.yaml
+    command: .venv/bin/python scripts/train.py --config {config} --evaluate-checkpoints
+    artifact_paths: [outputs/coordination_ring_mixed050_seed0_200k]
+    input_paths:
+      - source: outputs/stage_b/buffers/coordination_ring_stage_a_crossplay.json.gz
+        destination: outputs/stage_b/buffers/coordination_ring_stage_a_crossplay.json.gz
+  - name: coordination_ring_mixed050_seed1_200k
+    config: configs/stage_b/coordination_ring_mixed050_seed1_200k.yaml
+    command: .venv/bin/python scripts/train.py --config {config} --evaluate-checkpoints
+    artifact_paths: [outputs/coordination_ring_mixed050_seed1_200k]
+    input_paths:
+      - source: outputs/stage_b/buffers/coordination_ring_stage_a_crossplay.json.gz
+        destination: outputs/stage_b/buffers/coordination_ring_stage_a_crossplay.json.gz
+  - name: coordination_ring_mixed050_seed2_200k
+    config: configs/stage_b/coordination_ring_mixed050_seed2_200k.yaml
+    command: .venv/bin/python scripts/train.py --config {config} --evaluate-checkpoints
+    artifact_paths: [outputs/coordination_ring_mixed050_seed2_200k]
+    input_paths:
+      - source: outputs/stage_b/buffers/coordination_ring_stage_a_crossplay.json.gz
+        destination: outputs/stage_b/buffers/coordination_ring_stage_a_crossplay.json.gz
+  - name: coordination_ring_augmented_seed0_200k
+    config: configs/stage_b/coordination_ring_augmented_seed0_200k.yaml
+    command: .venv/bin/python scripts/train.py --config {config} --evaluate-checkpoints
+    artifact_paths: [outputs/coordination_ring_augmented_seed0_200k]
+    input_paths:
+      - source: outputs/stage_b/buffers/coordination_ring_stage_a_crossplay.json.gz
+        destination: outputs/stage_b/buffers/coordination_ring_stage_a_crossplay.json.gz
+  - name: coordination_ring_augmented_seed1_200k
+    config: configs/stage_b/coordination_ring_augmented_seed1_200k.yaml
+    command: .venv/bin/python scripts/train.py --config {config} --evaluate-checkpoints
+    artifact_paths: [outputs/coordination_ring_augmented_seed1_200k]
+    input_paths:
+      - source: outputs/stage_b/buffers/coordination_ring_stage_a_crossplay.json.gz
+        destination: outputs/stage_b/buffers/coordination_ring_stage_a_crossplay.json.gz
+  - name: coordination_ring_augmented_seed2_200k
+    config: configs/stage_b/coordination_ring_augmented_seed2_200k.yaml
+    command: .venv/bin/python scripts/train.py --config {config} --evaluate-checkpoints
+    artifact_paths: [outputs/coordination_ring_augmented_seed2_200k]
+    input_paths:
+      - source: outputs/stage_b/buffers/coordination_ring_stage_a_crossplay.json.gz
+        destination: outputs/stage_b/buffers/coordination_ring_stage_a_crossplay.json.gz
+

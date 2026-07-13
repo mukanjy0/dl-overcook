@@ -122,6 +122,13 @@ or linearly anneal when `entropy_final_coefficient` and optionally
 `entropy_anneal_steps` are set under `training.ppo`. Each training metrics record
 contains the effective entropy coefficient used for that update.
 
+Continuation schedules count environment steps completed by the current train
+invocation, not the absolute counter restored from the checkpoint. Reward
+shaping follows the same optional pattern through `training.reward_shaping_final`
+and `training.reward_shaping_anneal_steps`. Checkpoint RNG state is restored by
+default and can be intentionally disabled with
+`checkpoint.restore_rng_state: false` for fresh-stream fine-tuning.
+
 ## Stage C frozen-partner path
 
 At each new episode, the frozen-partner collector samples a `PartnerSpec`,

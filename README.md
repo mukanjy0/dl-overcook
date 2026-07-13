@@ -45,7 +45,10 @@ a device selection (`auto`, `cpu`, or `cuda`), and deterministic inference.
 Training writes the effective configuration, JSONL metrics, a resumable
 training checkpoint, a compact device-neutral inference artifact, and a run
 summary below the configured output root. To resume, set
-`checkpoint.resume_from` to a training checkpoint. Evaluation loads the ego
+`checkpoint.resume_from` to a training checkpoint. RNG restoration defaults to
+`checkpoint.restore_rng_state: true`; fine-tuning can set it to `false` without
+changing checkpoint compatibility. Entropy and reward shaping can anneal over
+steps completed after resume. Evaluation loads the ego
 through `build_policy`, tests both positions, and reports sparse return,
 delivery events, timeout/invalid-action replacements, and the canonical
 official score.
@@ -65,7 +68,7 @@ Selection first maximizes deterministic minimum-position official score, then
 deterministic mean official score. Stochastic metrics are diagnostic
 and do not override deployment selection.
 
-## Kaggle GPU execution
+## Kaggle CPU or GPU execution
 
 Local smoke tests should pass before packaging. The packager follows the
 repository Kaggle skill's versioned input/output convention and runs the same
@@ -75,14 +78,18 @@ training script and YAML remotely:
 .venv/bin/python scripts/package_kaggle_run.py \
   --version v1 \
   --kernel-id USER/stage-a-self-play \
-  --title "Stage A self-play"
+  --title "Stage A self-play" \
+  --commit HEAD \
+  --accelerator cpu
 kaggle kernels push -p kaggle/v1/input
 ```
 
 Monitor the kernel with the Kaggle CLI, then download `run_summary.json`,
 checkpoints, metrics, logs, and the effective configuration into
 `kaggle/v1/outputs` and copy important artifacts into the configured local
-output structure. Kaggle-specific paths and APIs do not enter core modules.
+output structure. Verify `remote_input_manifest.json` and
+`artifact_manifest.json` hashes. Kaggle-specific paths and APIs do not enter
+core modules.
 
 See [docs/architecture.md](docs/architecture.md) for module responsibilities,
 interfaces, checkpoint profiles, and compatibility guarantees.
@@ -135,8 +142,9 @@ instructions.
 
 The reusable [RunPod skill](.codex/skills/runpod/SKILL.md) launches isolated
 experiment Pods through RunPod's official APIs. It always pins the cloned Git
-commit, estimates the current price before provisioning, archives declared
-artifacts locally, and terminates recorded Pods on completion or failure.
+commit (or uploads an immutable archive), hashes declared inputs, enforces an
+approved provisioned hourly-rate cap, validates fetched artifacts, and
+terminates recorded Pods on completion or failure.
 
 Configure RunPod outside the repository, then verify the local setup:
 
@@ -155,7 +163,8 @@ dry run and a one-worker smoke test before a matrix launch:
 .venv/bin/python .codex/skills/runpod/scripts/runpod_matrix.py launch \
   --matrix PATH/TO/matrix.yaml --dry-run
 .venv/bin/python .codex/skills/runpod/scripts/runpod_matrix.py launch \
-  --matrix PATH/TO/matrix.yaml --estimate-hours HOURS --max-parallel 1
+  --matrix PATH/TO/matrix.yaml --estimate-hours HOURS \
+  --max-hourly-rate USD --max-parallel 1
 ```
 
 For a validated matrix, the parallel command is the same with the desired
@@ -163,7 +172,8 @@ worker count:
 
 ```bash
 .venv/bin/python .codex/skills/runpod/scripts/runpod_matrix.py launch \
-  --matrix PATH/TO/matrix.yaml --estimate-hours HOURS --max-parallel N
+  --matrix PATH/TO/matrix.yaml --estimate-hours HOURS \
+  --max-hourly-rate USD --max-parallel N
 ```
 
 Keep `RUNPOD_API_KEY` (for CI) and, when needed, `RUNPOD_GIT_TOKEN` only in the

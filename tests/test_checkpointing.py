@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 from pathlib import Path
 
 import numpy as np
@@ -76,6 +77,53 @@ def test_training_save_resume_and_inference_export(tmp_path: Path) -> None:
         ).actions.item()
     )
     assert loaded.policy.act(observation, deterministic=True) == expected_action
+
+
+def test_training_checkpoint_can_restore_or_ignore_rng_state(tmp_path: Path) -> None:
+    model, model_config, observation_spec = _model_and_spec()
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    random.seed(17)
+    np.random.seed(17)
+    torch.manual_seed(17)
+    path = tmp_path / "rng.pt"
+    save_training_checkpoint(
+        path,
+        model=model,
+        model_config=model_config,
+        observation_spec=observation_spec,
+        optimizer=optimizer,
+        scheduler=None,
+        trainer_state={"update": 1, "environment_steps": 8},
+        effective_config={},
+        environment_metadata={},
+    )
+    expected = (random.random(), float(np.random.random()), float(torch.rand(())))
+
+    random.seed(99)
+    np.random.seed(99)
+    torch.manual_seed(99)
+    load_training_checkpoint(path, model=model, restore_random_state=True)
+    restored = (random.random(), float(np.random.random()), float(torch.rand(())))
+    assert restored == expected
+
+    random.seed(123)
+    np.random.seed(123)
+    torch.manual_seed(123)
+    expected_without_restore = (
+        random.random(),
+        float(np.random.random()),
+        float(torch.rand(())),
+    )
+    random.seed(123)
+    np.random.seed(123)
+    torch.manual_seed(123)
+    load_training_checkpoint(path, model=model, restore_random_state=False)
+    actual_without_restore = (
+        random.random(),
+        float(np.random.random()),
+        float(torch.rand(())),
+    )
+    assert actual_without_restore == expected_without_restore
 
 
 def test_cpu_fallback_when_cuda_is_unavailable(tmp_path: Path, monkeypatch) -> None:

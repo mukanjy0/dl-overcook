@@ -220,3 +220,16 @@ sampling, and restoration concerns in their current modules.
 The infrastructure is ready for layout-specific collection and short
 validation. It makes no claim about the reset mixture, source-policy set,
 `every_k`, or training budget that will perform best on a given layout.
+
+## Coordination Ring parallel matrix
+
+The committed Coordination Ring workstream expands collection to all six
+ordered Stage A cross-play assignments over five seeds, then compares standard,
+mixed 0.25, mixed 0.50, and augmented resets at seeds 0–2 for 200704 steps.
+`configs/stage_b/runpod_coordination_ring_smoke.yaml` defines the required
+single-Pod 32768-step lifecycle validation;
+`configs/stage_b/runpod_coordination_ring_matrix.yaml` defines the 12 jobs.
+Both use immutable archive upload and explicit file inputs rather than relying
+on repository authentication or transient Pod state. The complete guarded
+handoff is
+[`workstreams/cr_stage_b_runpod_prompt.md`](workstreams/cr_stage_b_runpod_prompt.md).

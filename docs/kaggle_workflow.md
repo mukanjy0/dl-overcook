@@ -28,7 +28,9 @@ Package the committed project and one YAML configuration:
   --version v24 \
   --kernel-id OWNER/KERNEL-SLUG \
   --title KERNEL-TITLE \
-  --config configs/stage_a/train_self_play.yaml
+  --config configs/stage_a/train_self_play.yaml \
+  --commit HEAD \
+  --accelerator t4
 ```
 
 Inspect `kaggle/v24/input/kernel-metadata.json`, then launch from the input
@@ -55,6 +57,14 @@ Do not treat Kaggle `COMPLETE` as sufficient. Also inspect the downloaded
 effective configuration, and expected final step count. Copy accepted artifacts
 into the configured `outputs/` run directory; keep the complete remote log and
 versioned package under `kaggle/vN/`.
+
+Use `--accelerator cpu` for the measured CPU-bound PPO workload and push without
+an accelerator flag. The generated CPU metadata has `enable_gpu: false` and no
+`machine_shape`; T4 metadata uses `machine_shape: NvidiaTeslaT4`. Standard
+packages verify that the selected config is byte-identical to the requested
+commit, add only config-referenced runtime assets, record every input SHA-256 in
+`remote_input_manifest.json`, and record output SHA-256 values in
+`artifact_manifest.json`.
 
 ## Immutable CPU-versus-GPU benchmark
 

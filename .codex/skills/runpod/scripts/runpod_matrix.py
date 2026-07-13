@@ -6,18 +6,19 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import datetime as dt
+import hashlib
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import time
 import threading
 import urllib.error
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -148,16 +149,40 @@ def current_repository() -> tuple[str, str]:
     return run_local(["git", "remote", "get-url", "origin"]), run_local(["git", "rev-parse", "HEAD"])
 
 
+def current_checkout() -> tuple[Path, str]:
+    root = Path(run_local(["git", "rev-parse", "--show-toplevel"])).resolve()
+    return root, run_local(["git", "rev-parse", "HEAD"], cwd=root)
+
+
 def resolved_matrix(matrix: dict[str, Any]) -> dict[str, Any]:
     result = json.loads(json.dumps(matrix))
     repository = result.setdefault("repository", {})
     if not isinstance(repository, dict):
         raise LauncherError("repository must be a mapping.")
-    if not repository.get("url") or not repository.get("commit"):
-        url, commit = current_repository()
-        repository.setdefault("url", url)
-        repository.setdefault("commit", commit)
+    source = str(repository.get("source", "git")).lower()
+    repository["source"] = source
+    if source == "git":
+        if not repository.get("url") or not repository.get("commit"):
+            url, commit = current_repository()
+            repository.setdefault("url", url)
+            repository.setdefault("commit", commit)
+    elif source == "archive":
+        if not repository.get("commit"):
+            _, commit = current_checkout()
+            repository["commit"] = commit
+    else:
+        raise LauncherError("repository.source must be git or archive.")
     return result
+
+
+def safe_relative_path(value: object, label: str) -> Path:
+    raw = str(value)
+    if any(character in raw for character in ("\n", "\r", "\x00")):
+        raise LauncherError(f"{label} contains an unsupported control character.")
+    path = Path(raw)
+    if path.is_absolute() or ".." in path.parts or path in {Path(""), Path(".")}:
+        raise LauncherError(f"{label} must be a non-empty relative path without traversal.")
+    return path
 
 
 def require(value: Any, label: str) -> Any:
@@ -169,7 +194,8 @@ def require(value: Any, label: str) -> Any:
 def validate(matrix: dict[str, Any]) -> dict[str, Any]:
     matrix = resolved_matrix(matrix)
     repo = require(matrix.get("repository"), "repository")
-    require(repo.get("url"), "repository.url")
+    if repo["source"] == "git":
+        require(repo.get("url"), "repository.url")
     require(repo.get("commit"), "repository.commit")
     require(repo.get("setup_command"), "repository.setup_command")
     pod = require(matrix.get("pod"), "pod")
@@ -181,6 +207,18 @@ def validate(matrix: dict[str, Any]) -> dict[str, Any]:
         require(pod.get("gpu_type_ids"), "pod.gpu_type_ids")
         if not isinstance(pod["gpu_type_ids"], list) or not all(isinstance(v, str) for v in pod["gpu_type_ids"]):
             raise LauncherError("pod.gpu_type_ids must be a list of RunPod GPU IDs.")
+    else:
+        require(pod.get("cpu_flavor_ids"), "pod.cpu_flavor_ids")
+        if not isinstance(pod["cpu_flavor_ids"], list) or not all(
+            isinstance(value, str) for value in pod["cpu_flavor_ids"]
+        ):
+            raise LauncherError("pod.cpu_flavor_ids must be a list of RunPod CPU flavor IDs.")
+        try:
+            vcpu_count = int(require(pod.get("vcpu_count"), "pod.vcpu_count"))
+        except (TypeError, ValueError) as exc:
+            raise LauncherError("pod.vcpu_count must be a positive integer.") from exc
+        if vcpu_count <= 0:
+            raise LauncherError("pod.vcpu_count must be a positive integer.")
     jobs = require(matrix.get("jobs"), "jobs")
     if not isinstance(jobs, list) or not jobs:
         raise LauncherError("jobs must be a non-empty list.")
@@ -196,8 +234,22 @@ def validate(matrix: dict[str, Any]) -> dict[str, Any]:
         paths = require(job.get("artifact_paths"), f"jobs[{index}].artifact_paths")
         if not isinstance(paths, list) or not all(isinstance(v, str) for v in paths):
             raise LauncherError(f"jobs[{index}].artifact_paths must be a list of relative paths.")
-        if any(Path(item).is_absolute() or ".." in Path(item).parts for item in paths):
-            raise LauncherError(f"jobs[{index}].artifact_paths must stay inside the repository checkout.")
+        for path_index, item in enumerate(paths):
+            safe_relative_path(item, f"jobs[{index}].artifact_paths[{path_index}]")
+        inputs = job.get("input_paths", [])
+        if not isinstance(inputs, list):
+            raise LauncherError(f"jobs[{index}].input_paths must be a list.")
+        for input_index, item in enumerate(inputs):
+            if not isinstance(item, dict):
+                raise LauncherError(f"jobs[{index}].input_paths[{input_index}] must be a mapping.")
+            safe_relative_path(
+                require(item.get("source"), f"jobs[{index}].input_paths[{input_index}].source"),
+                f"jobs[{index}].input_paths[{input_index}].source",
+            )
+            safe_relative_path(
+                require(item.get("destination"), f"jobs[{index}].input_paths[{input_index}].destination"),
+                f"jobs[{index}].input_paths[{input_index}].destination",
+            )
     return matrix
 
 
@@ -218,6 +270,115 @@ def read_state(manifest: Path) -> dict[str, Any]:
     if not manifest.is_file():
         raise LauncherError(f"Manifest does not exist: {manifest}")
     return json.loads(manifest.read_text(encoding="utf-8"))
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def prepare_source_archive(
+    repository: dict[str, Any],
+    output_dir: Path,
+) -> dict[str, Any] | None:
+    """Create a byte-stable archive of the requested local commit."""
+    if repository["source"] != "archive":
+        return None
+    project_root, _ = current_checkout()
+    commit = run_local(
+        ["git", "rev-parse", "--verify", f"{repository['commit']}^{{commit}}"],
+        cwd=project_root,
+    )
+    repository["commit"] = commit
+    transfer_dir = output_dir / "transfer_inputs"
+    transfer_dir.mkdir(parents=True, exist_ok=True)
+    archive = transfer_dir / f"source-{commit}.tar.gz"
+    if not archive.is_file():
+        try:
+            subprocess.run(
+                ["git", "archive", "--format=tar.gz", "--output", str(archive), commit],
+                cwd=project_root,
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            raise LauncherError(exc.stderr.strip() or "Could not create immutable source archive.") from exc
+    return {
+        "path": str(archive),
+        "commit": commit,
+        "size_bytes": archive.stat().st_size,
+        "sha256": sha256_file(archive),
+    }
+
+
+def prepare_job_inputs(
+    job: dict[str, Any],
+    job_slug: str,
+    output_dir: Path,
+) -> dict[str, Any] | None:
+    """Archive explicitly declared local files at safe repository destinations."""
+    inputs = job.get("input_paths", [])
+    if not inputs:
+        return None
+    project_root, _ = current_checkout()
+    transfer_dir = output_dir / "transfer_inputs"
+    transfer_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = transfer_dir / f"{job_slug}-input-manifest.json"
+    archive_path = transfer_dir / f"{job_slug}-inputs.tar.gz"
+    manifest: list[dict[str, Any]] = []
+    resolved: list[tuple[Path, Path]] = []
+    for index, item in enumerate(inputs):
+        source_relative = safe_relative_path(item["source"], f"input_paths[{index}].source")
+        destination = safe_relative_path(
+            item["destination"], f"input_paths[{index}].destination"
+        )
+        source = (project_root / source_relative).resolve()
+        if not source.is_relative_to(project_root):
+            raise LauncherError(f"Input source escapes the checkout: {source_relative}")
+        if not source.is_file():
+            raise LauncherError(f"Input source is not a file: {source_relative}")
+        resolved.append((source, destination))
+        manifest.append(
+            {
+                "source": str(source_relative),
+                "destination": str(destination),
+                "size_bytes": source.stat().st_size,
+                "sha256": sha256_file(source),
+            }
+        )
+    manifest_path.write_text(
+        json.dumps({"job": job["name"], "inputs": manifest}, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    with tarfile.open(archive_path, "w:gz") as archive:
+        for source, destination in resolved:
+            archive.add(source, arcname=str(destination), recursive=False)
+        archive.add(manifest_path, arcname=".runpod-input-manifest.json", recursive=False)
+    return {
+        "path": str(archive_path),
+        "size_bytes": archive_path.stat().st_size,
+        "sha256": sha256_file(archive_path),
+        "inputs": manifest,
+    }
+
+
+def prepare_transfers(
+    state: dict[str, Any],
+    matrix: dict[str, Any],
+    output_dir: Path,
+) -> None:
+    source = prepare_source_archive(matrix["repository"], output_dir)
+    state["source_archive"] = source
+    for job_state in state["jobs"]:
+        job_state["input_archive"] = prepare_job_inputs(
+            job_state["matrix_job"], job_state["slug"], output_dir
+        )
+    write_state(output_dir, state)
 
 
 def default_output(matrix_path: Path) -> Path:
@@ -279,7 +440,14 @@ def pod_payload(matrix: dict[str, Any], name: str, job: dict[str, Any], run_id: 
     if compute == "GPU":
         payload.update({"gpuTypeIds": pod["gpu_type_ids"], "gpuCount": int(pod.get("gpu_count", 1)), "gpuTypePriority": pod.get("gpu_type_priority", "custom"), "interruptible": bool(pod.get("interruptible", False))})
     else:
-        payload.update({"cpuFlavorIds": pod.get("cpu_flavor_ids", []), "vcpuCount": pod.get("vcpu_count")})
+        payload.update(
+            {
+                "cpuFlavorIds": pod["cpu_flavor_ids"],
+                "vcpuCount": int(pod["vcpu_count"]),
+                "cpuFlavorPriority": pod.get("cpu_flavor_priority", "custom"),
+                "interruptible": bool(pod.get("interruptible", False)),
+            }
+        )
     if pod.get("network_volume_id"):
         payload["networkVolumeId"] = pod["network_volume_id"]
     if pod.get("data_center_ids"):
@@ -294,23 +462,38 @@ def pod_payload(matrix: dict[str, Any], name: str, job: dict[str, Any], run_id: 
 BOOTSTRAP = r'''#!/usr/bin/env bash
 set -euo pipefail
 workspace="$1"
-repo_url="$2"
-commit="$3"
-setup_command="$4"
-job_command="$5"
-job_name="$6"
-artifact_paths="$7"
+source_mode="$2"
+repo_url="$3"
+commit="$4"
+setup_command="$5"
+job_command="$6"
+job_name="$7"
+artifact_paths="$8"
+source_archive="$9"
+source_sha="${10}"
+input_archive="${11}"
+input_sha="${12}"
 mkdir -p "$workspace"
 output="$workspace/result"
 repo="$workspace/repository"
 mkdir -p "$output"
 started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-if [[ -n "${RUNPOD_GIT_TOKEN:-}" ]]; then
-  GIT_TERMINAL_PROMPT=0 git -c http.extraHeader="Authorization: Bearer ${RUNPOD_GIT_TOKEN}" clone --no-checkout "$repo_url" "$repo"
+if [[ "$source_mode" == "archive" ]]; then
+  [[ "$(sha256sum "$source_archive" | awk '{print $1}')" == "$source_sha" ]]
+  mkdir -p "$repo"
+  tar -xzf "$source_archive" -C "$repo"
 else
-  GIT_TERMINAL_PROMPT=0 git clone --no-checkout "$repo_url" "$repo"
+  if [[ -n "${RUNPOD_GIT_TOKEN:-}" ]]; then
+    GIT_TERMINAL_PROMPT=0 git -c http.extraHeader="Authorization: Bearer ${RUNPOD_GIT_TOKEN}" clone --no-checkout "$repo_url" "$repo"
+  else
+    GIT_TERMINAL_PROMPT=0 git clone --no-checkout "$repo_url" "$repo"
+  fi
+  git -C "$repo" checkout --detach "$commit"
 fi
-git -C "$repo" checkout --detach "$commit"
+if [[ -n "$input_archive" ]]; then
+  [[ "$(sha256sum "$input_archive" | awk '{print $1}')" == "$input_sha" ]]
+  tar -xzf "$input_archive" -C "$repo"
+fi
 cd "$repo"
 if ! command -v uv >/dev/null 2>&1; then
   python3 -m pip install --no-cache-dir uv >"$output/uv-install.log" 2>&1
@@ -329,7 +512,8 @@ PY
 mkdir -p "$repo/.runpod-launcher-metadata"
 cp "$output/job.log" "$output/setup.log" "$output/metadata.json" "$repo/.runpod-launcher-metadata/"
 [[ -f "$output/uv-install.log" ]] && cp "$output/uv-install.log" "$repo/.runpod-launcher-metadata/"
-tar -C "$repo" --ignore-failed-read -czf "$output/artifacts.tar.gz" -T "$artifact_paths" .runpod-launcher-metadata
+printf '%s\n' "$artifact_paths" >"$output/artifact-paths.txt"
+tar -C "$repo" --ignore-failed-read --verbatim-files-from -czf "$output/artifacts.tar.gz" -T "$output/artifact-paths.txt" .runpod-launcher-metadata
 rm -rf "$repo/.runpod-launcher-metadata"
 exit "$status"
 '''
@@ -343,6 +527,43 @@ def run_remote(ssh: list[str], script: str, args: list[str], log_path: Path) -> 
     return completed.returncode
 
 
+def upload_file(ssh: list[str], pod: dict[str, Any], source: Path, remote: str) -> None:
+    remote_parent = str(Path(remote).parent)
+    subprocess.run(ssh + ["mkdir", "-p", remote_parent], check=True)
+    scp = [
+        "scp",
+        "-i",
+        ssh[ssh.index("-i") + 1],
+        "-P",
+        ssh[ssh.index("-p") + 1],
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        str(source),
+        f"root@{pod['publicIp']}:{remote}",
+    ]
+    subprocess.run(scp, check=True)
+
+
+def verify_artifact_archive(path: Path) -> dict[str, Any]:
+    """Validate archive readability/traversal and return integrity metadata."""
+    try:
+        with tarfile.open(path, "r:gz") as archive:
+            members = archive.getmembers()
+    except (tarfile.TarError, OSError) as exc:
+        raise LauncherError(f"Fetched artifact archive is invalid: {path}") from exc
+    for member in members:
+        member_path = Path(member.name)
+        if member_path.is_absolute() or ".." in member_path.parts:
+            raise LauncherError(f"Fetched artifact archive contains unsafe path: {member.name}")
+    return {
+        "size_bytes": path.stat().st_size,
+        "sha256": sha256_file(path),
+        "member_count": len(members),
+    }
+
+
 def fetch_job(job_state: dict[str, Any], key: Path, output_dir: Path) -> None:
     pod = rest("GET", f"/pods/{job_state['pod_id']}")
     ssh = connection(pod, key)
@@ -351,6 +572,7 @@ def fetch_job(job_state: dict[str, Any], key: Path, output_dir: Path) -> None:
     local.parent.mkdir(parents=True, exist_ok=True)
     scp = ["scp", "-i", str(key), "-P", ssh[ssh.index("-p") + 1], "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new", f"root@{pod['publicIp']}:{remote}", str(local)]
     subprocess.run(scp, check=True)
+    job_state["artifact_integrity"] = verify_artifact_archive(local)
     job_state["artifacts_fetched_at"] = utc_now()
 
 
@@ -395,13 +617,39 @@ def resolve_command(job: dict[str, Any], remote_result: str) -> str:
         raise LauncherError(f"Job {job['name']} command has invalid template: {exc}") from exc
 
 
+def provisioned_rate_within_cap(pod: dict[str, Any], maximum_rate: float) -> float:
+    raw_rate = pod.get("adjustedCostPerHr", pod.get("costPerHr"))
+    if raw_rate is None:
+        raise LauncherError("RunPod did not return the provisioned hourly rate.")
+    rate = float(raw_rate)
+    if rate > maximum_rate:
+        raise LauncherError(
+            f"Provisioned rate ${rate:.4f}/hour exceeds the ${maximum_rate:.4f}/hour cap."
+        )
+    return rate
+
+
 def launch_one(state: dict[str, Any], job_state: dict[str, Any], matrix: dict[str, Any], output_dir: Path, key: Path) -> None:
     job = job_state["matrix_job"]
     if job_state.get("pod_id"):
         return
     pod = rest("POST", "/pods", pod_payload(matrix, job_state["pod_name"], job, state["run_id"]))
-    job_state.update({"pod_id": pod["id"], "provisioned_at": utc_now(), "provisioned_cost_per_hour": pod.get("adjustedCostPerHr", pod.get("costPerHr")), "status": "provisioned"})
+    raw_rate = pod.get("adjustedCostPerHr", pod.get("costPerHr"))
+    rate = float(raw_rate) if raw_rate is not None else None
+    cap_error: LauncherError | None = None
+    try:
+        provisioned_rate_within_cap(pod, float(state["max_hourly_rate"]))
+    except LauncherError as exc:
+        cap_error = exc
+    job_state.update({"pod_id": pod["id"], "provisioned_at": utc_now(), "provisioned_cost_per_hour": rate, "status": "provisioned"})
     write_state(output_dir, state)
+    if cap_error is not None:
+        job_state["status"] = "cost_cap_rejected"
+        job_state["termination"] = terminate_pod(pod["id"])
+        write_state(output_dir, state)
+        raise LauncherError(
+            f"Job {job['name']} failed its cost cap: {cap_error} Pod was terminated."
+        )
     timeout = float(matrix["pod"].get("readiness_timeout_minutes", 15))
     ready = wait_for_ssh(pod["id"], key, timeout)
     remote_root = str(matrix["pod"].get("volume_mount_path", "/workspace")).rstrip("/")
@@ -410,8 +658,42 @@ def launch_one(state: dict[str, Any], job_state: dict[str, Any], matrix: dict[st
     job_state.update({"status": "running", "remote_result": remote_result, "ssh_ready_at": utc_now()})
     write_state(output_dir, state)
     ssh = connection(ready, key)
+    source_archive = state.get("source_archive")
+    remote_source = ""
+    source_sha = ""
+    if source_archive:
+        remote_source = remote_workspace + "/uploads/source.tar.gz"
+        upload_file(ssh, ready, Path(source_archive["path"]), remote_source)
+        source_sha = str(source_archive["sha256"])
+    input_archive = job_state.get("input_archive")
+    remote_inputs = ""
+    input_sha = ""
+    if input_archive:
+        remote_inputs = remote_workspace + "/uploads/inputs.tar.gz"
+        upload_file(ssh, ready, Path(input_archive["path"]), remote_inputs)
+        input_sha = str(input_archive["sha256"])
+    job_state["inputs_uploaded_at"] = utc_now()
+    write_state(output_dir, state)
     artifact_list = "\n".join(job["artifact_paths"]) + "\n"
-    exit_code = run_remote(ssh, BOOTSTRAP, [remote_workspace, matrix["repository"]["url"], matrix["repository"]["commit"], matrix["repository"]["setup_command"], resolve_command(job, remote_result), job["name"], artifact_list], output_dir / job_state["slug"] / "job.log")
+    exit_code = run_remote(
+        ssh,
+        BOOTSTRAP,
+        [
+            remote_workspace,
+            matrix["repository"]["source"],
+            str(matrix["repository"].get("url", "")),
+            matrix["repository"]["commit"],
+            matrix["repository"]["setup_command"],
+            resolve_command(job, remote_result),
+            job["name"],
+            artifact_list,
+            remote_source,
+            source_sha,
+            remote_inputs,
+            input_sha,
+        ],
+        output_dir / job_state["slug"] / "job.log",
+    )
     job_state.update({"status": "completed" if exit_code == 0 else "failed", "exit_code": exit_code, "finished_at": utc_now()})
     write_state(output_dir, state)
     fetch_job(job_state, key, output_dir)
@@ -468,17 +750,34 @@ def command_launch(args: argparse.Namespace) -> int:
     output_dir = Path(args.output_dir).resolve() if args.output_dir else (Path.cwd() / default_output(matrix_path)).resolve()
     run_id = slug(args.run_id or output_dir.name)
     prefix = f"runpod-{run_id}-"
+    if not args.dry_run and (args.max_hourly_rate is None or args.max_hourly_rate <= 0):
+        raise LauncherError(
+            "Paid launch requires a positive --max-hourly-rate cost cap for each Pod."
+        )
     if state_path(output_dir).exists() and not args.resume:
         raise LauncherError(f"State already exists at {state_path(output_dir)}; use --resume or a new --output-dir.")
-    state = read_state(state_path(output_dir)) if args.resume else {"run_id": run_id, "pod_name_prefix": prefix, "matrix": str(matrix_path), "created_at": utc_now(), "dry_run": bool(args.dry_run), "jobs": []}
+    state = read_state(state_path(output_dir)) if args.resume else {"run_id": run_id, "pod_name_prefix": prefix, "matrix": str(matrix_path), "created_at": utc_now(), "dry_run": bool(args.dry_run), "max_hourly_rate": args.max_hourly_rate, "jobs": []}
+    state["max_hourly_rate"] = args.max_hourly_rate
     if not state["jobs"]:
         state["jobs"] = [{"name": job["name"], "slug": slug(job["name"]), "pod_name": prefix + slug(job["name"]), "matrix_job": job, "status": "planned"} for job in matrix["jobs"]]
-    write_state(output_dir, state)
+    prepare_transfers(state, matrix, output_dir)
     if args.dry_run:
-        print(json.dumps({"status": "dry_run_validated", "manifest": str(state_path(output_dir)), "jobs": [job["pod_name"] for job in state["jobs"]], "provisioned": False}, indent=2))
+        print(json.dumps({"status": "dry_run_validated", "manifest": str(state_path(output_dir)), "jobs": [job["pod_name"] for job in state["jobs"]], "source_archive": state.get("source_archive"), "provisioned": False}, indent=2))
         return 0
     api_key()
-    command_estimate(argparse.Namespace(matrix=args.matrix, hours=args.estimate_hours))
+    if str(matrix["pod"].get("compute_type", "GPU")).upper() == "GPU":
+        command_estimate(argparse.Namespace(matrix=args.matrix, hours=args.estimate_hours))
+    else:
+        print(
+            json.dumps(
+                {
+                    "cost_guard": "provisioned-rate-cap",
+                    "max_hourly_rate_per_pod": args.max_hourly_rate,
+                    "note": "RunPod's GPU estimator does not quote CPU Pods; each Pod is terminated before setup if its returned rate exceeds this cap.",
+                },
+                indent=2,
+            )
+        )
     key = ssh_key_path(args.ssh_key)
     failures: list[str] = []
     try:
@@ -562,6 +861,11 @@ def parser() -> argparse.ArgumentParser:
     launch.add_argument("--ssh-key")
     launch.add_argument("--max-parallel", type=int, default=1)
     launch.add_argument("--estimate-hours", type=float, default=1.0, help="Expected hours per job for the mandatory pre-provision cost estimate.")
+    launch.add_argument(
+        "--max-hourly-rate",
+        type=float,
+        help="Required paid-run cap in USD/hour for each provisioned Pod.",
+    )
     launch.add_argument("--dry-run", action="store_true")
     launch.add_argument("--keep-pods", action="store_true")
     launch.add_argument("--resume", action="store_true")

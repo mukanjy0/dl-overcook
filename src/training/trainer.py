@@ -33,6 +33,7 @@ from src.state_augmentation.sources import (
     state_source_metrics,
 )
 from src.training.ppo import PPOConfig, PPOUpdater
+from src.training.schedules import linear_schedule
 from src.training.rollouts import FrozenPartnerRolloutCollector, SelfPlayRolloutCollector
 
 LOGGER = logging.getLogger(__name__)
@@ -231,6 +232,7 @@ def train(
                 optimizer if config.checkpoint.load_optimizer_state else None
             ),
             scheduler=None,
+            restore_random_state=config.checkpoint.restore_rng_state,
         )
         trainer_state.update(resumed.get("trainer_state", {}) or {})
 
@@ -275,6 +277,24 @@ def train(
     )
 
     while int(trainer_state["environment_steps"]) < config.training.total_steps:
+        completed_before_rollout = (
+            int(trainer_state["environment_steps"]) - starting_environment_steps
+        )
+        run_total_steps = config.training.total_steps - starting_environment_steps
+        completed_after_rollout = min(
+            completed_before_rollout
+            + config.training.num_environments * config.training.rollout_steps,
+            run_total_steps,
+        )
+        reward_shaping_coefficient = linear_schedule(
+            config.training.reward_shaping,
+            config.training.reward_shaping_final,
+            completed_steps=completed_after_rollout,
+            anneal_steps=(
+                config.training.reward_shaping_anneal_steps or run_total_steps
+            ),
+        )
+        collector.reward_shaping = reward_shaping_coefficient
         rollout = collector.collect(
             model,
             rollout_steps=config.training.rollout_steps,
@@ -283,10 +303,10 @@ def train(
         )
         entropy_coefficient = ppo_config.entropy_coefficient_at(
             min(
-                int(trainer_state["environment_steps"]) + rollout.num_environment_steps,
-                config.training.total_steps,
+                completed_before_rollout + rollout.num_environment_steps,
+                run_total_steps,
             ),
-            config.training.total_steps,
+            run_total_steps,
         )
         update_metrics = updater.update(
             rollout,
@@ -314,6 +334,7 @@ def train(
                 "reset_mode": config.state_augmentation.reset_mode,
                 **state_source_metrics(state_source),
             },
+            "reward_shaping_coefficient": reward_shaping_coefficient,
             **update_metrics,
         }
         if next_save_step is not None and int(trainer_state["environment_steps"]) >= next_save_step:
@@ -366,7 +387,8 @@ def train(
         mean_return = record["mean_completed_sparse_return"]
         LOGGER.info(
             "progress=%6.2f%% update=%d steps=%d/%d rate=%.1f env_steps/s "
-            "eta=%s sparse_return=%s policy_loss=%.4f value_loss=%.4f entropy_coef=%.5f",
+            "eta=%s sparse_return=%s policy_loss=%.4f value_loss=%.4f "
+            "entropy_coef=%.5f reward_shaping=%.5f",
             progress_percent,
             record["update"],
             record["environment_steps"],
@@ -377,6 +399,7 @@ def train(
             record["policy_loss"],
             record["value_loss"],
             record["entropy_coefficient"],
+            record["reward_shaping_coefficient"],
         )
 
     final_checkpoint = _checkpoint(

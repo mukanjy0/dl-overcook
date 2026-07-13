@@ -44,6 +44,8 @@ class TrainingSettings:
     num_environments: int
     rollout_steps: int
     reward_shaping: float
+    reward_shaping_final: float | None
+    reward_shaping_anneal_steps: int | None
     ppo: dict[str, Any]
 
 
@@ -51,6 +53,7 @@ class TrainingSettings:
 class CheckpointSettings:
     resume_from: Path | None
     load_optimizer_state: bool
+    restore_rng_state: bool
     save_interval: int
     export_path: Path
 
@@ -251,6 +254,21 @@ def load_experiment_config(path: str | Path) -> StageAConfig:
     for key in positive_training_fields:
         if int(training_cfg.get(key, 0)) <= 0:
             raise ConfigError(f"training.{key} must be positive")
+    reward_shaping = float(training_cfg.get("reward_shaping", 0.0))
+    reward_shaping_final_value = training_cfg.get("reward_shaping_final")
+    reward_shaping_final = (
+        None
+        if reward_shaping_final_value is None
+        else float(reward_shaping_final_value)
+    )
+    reward_shaping_anneal_value = training_cfg.get("reward_shaping_anneal_steps")
+    reward_shaping_anneal_steps = (
+        None
+        if reward_shaping_anneal_value is None
+        else int(reward_shaping_anneal_value)
+    )
+    if reward_shaping_anneal_steps is not None and reward_shaping_anneal_steps <= 0:
+        raise ConfigError("training.reward_shaping_anneal_steps must be positive")
 
     device = str(experiment_cfg.get("device", "auto")).lower()
     if device not in {"auto", "cpu", "cuda"}:
@@ -290,7 +308,9 @@ def load_experiment_config(path: str | Path) -> StageAConfig:
             total_steps=int(training_cfg["total_steps"]),
             num_environments=int(training_cfg["num_environments"]),
             rollout_steps=int(training_cfg["rollout_steps"]),
-            reward_shaping=float(training_cfg.get("reward_shaping", 0.0)),
+            reward_shaping=reward_shaping,
+            reward_shaping_final=reward_shaping_final,
+            reward_shaping_anneal_steps=reward_shaping_anneal_steps,
             ppo=deepcopy(training_cfg.get("ppo", {}) or {}),
         ),
         partner=deepcopy(partner_cfg),
@@ -308,6 +328,9 @@ def load_experiment_config(path: str | Path) -> StageAConfig:
             ),
             load_optimizer_state=bool(
                 checkpoint_cfg.get("load_optimizer_state", True)
+            ),
+            restore_rng_state=bool(
+                checkpoint_cfg.get("restore_rng_state", True)
             ),
             save_interval=int(checkpoint_cfg.get("save_interval", 0)),
             export_path=Path(str(export_value)),

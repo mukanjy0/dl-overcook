@@ -9,6 +9,7 @@ import torch
 
 from src.models.actor_critic import ActorCritic
 from src.training.rollouts import RolloutBatch
+from src.training.schedules import linear_schedule
 
 
 @dataclass(frozen=True)
@@ -65,13 +66,13 @@ class PPOConfig:
         return config
 
     def entropy_coefficient_at(self, environment_steps: int, total_steps: int) -> float:
-        """Return the linearly annealed entropy coefficient for one update."""
-        if self.entropy_final_coefficient is None:
-            return self.entropy_coefficient
+        """Return the coefficient for steps completed in the current run."""
         anneal_steps = self.entropy_anneal_steps or total_steps
-        progress = min(max(float(environment_steps) / float(anneal_steps), 0.0), 1.0)
-        return self.entropy_coefficient + progress * (
-            self.entropy_final_coefficient - self.entropy_coefficient
+        return linear_schedule(
+            self.entropy_coefficient,
+            self.entropy_final_coefficient,
+            completed_steps=environment_steps,
+            anneal_steps=anneal_steps,
         )
 
 

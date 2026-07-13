@@ -58,3 +58,13 @@ behavior. The preserved 900,096-step checkpoint also has minimum-position score
 score 65,273. Extending any unchanged 200k recipe is not supported by this
 comparison; the next experiment should change the optimization target rather
 than only add steps.
+
+## Counter Circuit local continuations
+
+The parallel local workstream re-evaluates three non-final checkpoints over 20
+seeds before comparing a 50176-step unchanged control with a reward/entropy
+consolidation continuation. The exact source checkpoints, configs, and extension
+gate are recorded in
+[`workstreams/cc_stage_a_local.md`](workstreams/cc_stage_a_local.md). Entropy and
+reward schedules are relative to steps performed after resume; historical
+checkpoint steps do not advance either schedule.

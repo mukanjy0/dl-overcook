@@ -159,3 +159,19 @@ counts, official scores, minimum and mean score, and zero-soup rate. The suite
 runs deterministic and stochastic ego inference with fixed episode seeds.
 Stochastic scripted/wrapped partners remain reproducible because every rollout
 is rebuilt with its episode seed.
+
+## Asymmetric Advantages 300k pair
+
+The parallel Stage C pair resumes the preserved 900096-step seed-67 checkpoint
+with fresh optimizers and random streams:
+
+- `configs/stage_c/asymmetric_exact_seed67_300k.yaml` trains only against the
+  disclosed greedy partner;
+- `configs/stage_c/asymmetric_weighted_pool_seed68_300k.yaml` trains against the
+  declared five-member weighted pool.
+
+Both add exactly 300032 environment steps, save every 50176 steps, and evaluate
+all checkpoints against the exact partner and pool in both ego positions and
+inference modes. They use CPU-only Kaggle packages because the measured PPO
+workload is environment/CPU-bound. The operational handoff is
+[`workstreams/aa_stage_c_kaggle_prompt.md`](workstreams/aa_stage_c_kaggle_prompt.md).

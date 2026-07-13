@@ -56,6 +56,7 @@ def test_training_paths_are_resolved_relative_to_yaml(tmp_path: Path) -> None:
     assert config.checkpoint.export_path == (
         config_path.parent / "artifacts" / "inference.pt"
     ).resolve()
+    assert config.checkpoint.restore_rng_state is True
 
 
 def test_invalid_layout_selection_fails_early(tmp_path: Path) -> None:
@@ -105,6 +106,36 @@ def test_agent_index_observation_is_configurable(tmp_path: Path) -> None:
     path = tmp_path / "no_index.yaml"
     path.write_text(yaml.safe_dump(raw), encoding="utf-8")
     assert load_experiment_config(path).observation.include_agent_index is False
+
+
+def test_finetuning_rng_and_reward_schedule_are_configurable(tmp_path: Path) -> None:
+    raw = _training_config()
+    raw["training"].update(
+        {
+            "reward_shaping": 1.0,
+            "reward_shaping_final": 0.1,
+            "reward_shaping_anneal_steps": 50_176,
+        }
+    )
+    raw["checkpoint"]["restore_rng_state"] = False
+    path = tmp_path / "fine_tune.yaml"
+    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+
+    loaded = load_experiment_config(path)
+    assert loaded.training.reward_shaping == 1.0
+    assert loaded.training.reward_shaping_final == 0.1
+    assert loaded.training.reward_shaping_anneal_steps == 50_176
+    assert loaded.checkpoint.restore_rng_state is False
+
+
+def test_invalid_reward_schedule_fails_early(tmp_path: Path) -> None:
+    raw = _training_config()
+    raw["training"]["reward_shaping_anneal_steps"] = 0
+    path = tmp_path / "invalid_schedule.yaml"
+    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+
+    with pytest.raises(ConfigError, match="reward_shaping_anneal_steps"):
+        load_experiment_config(path)
 
 
 def test_stage_c_exact_partner_paths_are_resolved_and_validated(tmp_path: Path) -> None:

@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "artifacts": [
+    {
+      "workstream": "cr_stage_b",
+      "path": "outputs/baseline_coordination_ring_seed0_1m/checkpoint_evaluation/selected/inference.pt",
+      "size_bytes": 125233,
+      "sha256": "b5f0084b38b117e88112d14f7d1a44b138b7320a7f49e0a1fdb21d9a2225ddd8"
+    },
+    {
+      "workstream": "cr_stage_b",
+      "path": "outputs/baseline_coordination_ring_seed1_1m/checkpoint_evaluation/selected/inference.pt",
+      "size_bytes": 125233,
+      "sha256": "8683198b4bc3252cc0bdf4bbaad1b516d2186cd0bcec0344601889b167943e50"
+    },
+    {
+      "workstream": "cr_stage_b",
+      "path": "outputs/baseline_coordination_ring_seed2_1m/checkpoint_evaluation/selected/inference.pt",
+      "size_bytes": 125233,
+      "sha256": "6580563127de9bafdc0da35aa04ead147c6f1f09ae2b1909f2a7c8d370575b37"
+    },
+    {
+      "workstream": "aa_stage_c",
+      "path": "outputs/stage_a_asymmetric_seed67/selected/training_step_000900096.pt",
+      "size_bytes": 389425,
+      "sha256": "6bd32653a06601e8d9f800b7dbe55b1a7087351d8d607c79b74b9a8fd1a5fe12"
+    },
+    {
+      "workstream": "aa_stage_c",
+      "path": "outputs/stage_a_asymmetric_seed67/selected/inference_step_000900096.pt",
+      "size_bytes": 125451,
+      "sha256": "f6c4289d14623895249615b0bc48e11217bef62c53ce0977c050e076eb3187a2"
+    },
+    {
+      "workstream": "aa_stage_c",
+      "path": "outputs/asymmetric_ablation_no_agent_index_200k/checkpoint_evaluation/selected/inference.pt",
+      "size_bytes": 124209,
+      "sha256": "357a16d0104448aa12705ce1688cb907b2c14ebb8ee717f8dc803e9b8b0da65a"
+    }
+  ]
+}
