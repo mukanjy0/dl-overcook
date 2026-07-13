@@ -1,4 +1,4 @@
-"""Evaluate and select deployable artifacts from Stage A training checkpoints."""
+"""Evaluate and select deployable artifacts from training checkpoints."""
 
 from __future__ import annotations
 

@@ -105,3 +105,58 @@ def test_agent_index_observation_is_configurable(tmp_path: Path) -> None:
     path = tmp_path / "no_index.yaml"
     path.write_text(yaml.safe_dump(raw), encoding="utf-8")
     assert load_experiment_config(path).observation.include_agent_index is False
+
+
+def test_stage_c_exact_partner_paths_are_resolved_and_validated(tmp_path: Path) -> None:
+    raw = _training_config()
+    raw["checkpoint"]["load_optimizer_state"] = False
+    raw["partner"] = {
+        "sampler": "exact",
+        "position_sampler": "balanced",
+        "exact_partner": "frozen_sp",
+        "policies": [
+            {
+                "name": "frozen_sp",
+                "weight": 1.0,
+                "source": "frozen_checkpoint",
+                "observation": {
+                    "type": "featurized",
+                    "include_agent_index": False,
+                },
+                "policy": {
+                    "type": "python_class",
+                    "path": "policy.py",
+                    "config": {"checkpoint_path": "partner.pt"},
+                },
+            }
+        ],
+    }
+    path = tmp_path / "stage_c.yaml"
+    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+
+    loaded = load_experiment_config(path)
+    assert loaded.checkpoint.load_optimizer_state is False
+    policy = loaded.partner["policies"][0]["policy"]
+    assert policy["path"] == str((tmp_path / "policy.py").resolve())
+    assert policy["config"]["checkpoint_path"] == str(
+        (tmp_path / "partner.pt").resolve()
+    )
+
+
+def test_stage_c_exact_partner_must_name_a_pool_member(tmp_path: Path) -> None:
+    raw = _training_config()
+    raw["partner"] = {
+        "sampler": "exact",
+        "exact_partner": "missing",
+        "policies": [
+            {
+                "name": "stay",
+                "policy": {"type": "builtin", "name": "stay"},
+            }
+        ],
+    }
+    path = tmp_path / "invalid_stage_c.yaml"
+    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+
+    with pytest.raises(ConfigError, match="not present"):
+        load_experiment_config(path)

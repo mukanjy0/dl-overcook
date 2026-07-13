@@ -1,4 +1,4 @@
-"""Package the committed Stage A entry point into the Kaggle skill layout."""
+"""Package the committed training entry point into the Kaggle skill layout."""
 
 from __future__ import annotations
 
@@ -8,6 +8,8 @@ import json
 import re
 import shutil
 from pathlib import Path
+
+import yaml
 
 
 KAGGLE_MAIN = '''"""Generated Kaggle orchestration; core logic remains in project/scripts/train.py."""
@@ -99,6 +101,37 @@ except Exception as exc:
 '''
 
 
+def _copy_state_buffer_asset(
+    project_root: Path,
+    destination: Path,
+    config_path: Path,
+) -> None:
+    """Copy an opt-in Stage B buffer while preserving its config-relative path."""
+    raw = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    state_augmentation = raw.get("state_augmentation", {}) or {}
+    if not isinstance(state_augmentation, dict):
+        return
+    if str(state_augmentation.get("reset_mode", "standard")).lower() == "standard":
+        return
+    buffer_value = state_augmentation.get("buffer_path")
+    if buffer_value in (None, ""):
+        return
+    configured_path = Path(str(buffer_value)).expanduser()
+    if configured_path.is_absolute():
+        raise ValueError(
+            "Kaggle packaging requires state_augmentation.buffer_path to be "
+            "relative to its training YAML"
+        )
+    source = (config_path.parent / configured_path).resolve()
+    if not source.is_relative_to(project_root):
+        raise ValueError("The Stage B state buffer must be inside the project root")
+    if not source.is_file():
+        raise FileNotFoundError(f"Stage B state buffer not found: {source}")
+    target = destination / source.relative_to(project_root)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, target)
+
+
 def _copy_project(project_root: Path, destination: Path, config_path: Path) -> str:
     for directory in ("src", "policies"):
         shutil.copytree(
@@ -116,6 +149,7 @@ def _copy_project(project_root: Path, destination: Path, config_path: Path) -> s
         source = project_root / filename
         if source.exists():
             shutil.copy2(source, destination / filename)
+    _copy_state_buffer_asset(project_root, destination, config_path)
     return str(config_path.relative_to(project_root))
 
 

@@ -38,6 +38,7 @@ class EpisodeResult:
     role_swap: bool
     sparse_return: float
     shaped_return: float
+    start_timestep: int
     episode_length: int
     delivery_timesteps_by_agent: tuple[tuple[int, ...], tuple[int, ...]]
     delivery_timesteps: tuple[int, ...]
@@ -61,7 +62,7 @@ class EpisodeResult:
         return result
 
     def legacy_summary(self) -> dict[str, Any]:
-        """Expose original episode keys together with Stage A diagnostics."""
+        """Expose original episode keys together with training diagnostics."""
         return {
             "episode_id": self.episode_id,
             "layout_name": self.layout,
@@ -71,6 +72,7 @@ class EpisodeResult:
             "return_sparse": self.sparse_return,
             "ep_sparse_r": self.sparse_return,
             "ep_shaped_r": self.shaped_return,
+            "start_timestep": self.start_timestep,
             "ep_length": self.episode_length,
             "delivery_timesteps_by_agent": [
                 list(values) for values in self.delivery_timesteps_by_agent
@@ -99,6 +101,7 @@ def build_episode_result(
     role_swap: bool,
     sparse_return: float,
     shaped_return: float,
+    episode_start_timestep: int = 0,
     timeout_counts_by_agent: tuple[int, int] = (0, 0),
     invalid_counts_by_agent: tuple[int, int] = (0, 0),
     stopped_by_user: bool = False,
@@ -124,7 +127,8 @@ def build_episode_result(
         role_swap=bool(role_swap),
         sparse_return=float(sparse_return),
         shaped_return=float(shaped_return),
-        episode_length=int(env.state.timestep),
+        start_timestep=int(episode_start_timestep),
+        episode_length=int(env.state.timestep) - int(episode_start_timestep),
         delivery_timesteps_by_agent=deliveries_by_agent,
         delivery_timesteps=delivery_timesteps,
         timeout_count_ego=int(timeout_counts_by_agent[ego_player_index]),
@@ -159,6 +163,7 @@ def run_episode(
 
     agent_pair = AgentPair(*agents)
     env.reset(regen_mdp=False)
+    episode_start_timestep = int(env.state.timestep)
     agent_pair.reset()
     agent_pair.set_mdp(env.mdp)
 
@@ -215,6 +220,7 @@ def run_episode(
         role_swap=bool(role_swap),
         sparse_return=sparse_return,
         shaped_return=shaped_return,
+        episode_start_timestep=episode_start_timestep,
         timeout_counts_by_agent=tuple(timeout_counts),
         invalid_counts_by_agent=tuple(invalid_counts),
         stopped_by_user=stopped_by_user,

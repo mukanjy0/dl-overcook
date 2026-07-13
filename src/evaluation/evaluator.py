@@ -128,7 +128,7 @@ def _mode_metrics(cases: list[EvaluationCaseResult]) -> dict[str, Any]:
 
 
 def evaluate_from_config(config: dict[str, Any]) -> dict[str, Any]:
-    """Run legacy single evaluations or a Stage A layout/partner suite."""
+    """Run legacy single evaluations or a layout/partner suite."""
     evaluation = config.get("evaluation", {}) or {}
     layouts = evaluation.get("layouts")
     partners = evaluation.get("partners")

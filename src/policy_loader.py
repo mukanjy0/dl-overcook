@@ -98,7 +98,13 @@ def build_policy(policy_config: dict[str, Any], env, obs_builder: ObservationBui
         cls = import_class_from_file(policy_config["path"], class_name)
         student_config = policy_config.get("config", {}) or {}
         student_agent = cls(student_config)
-        base_agent = StudentAgentAdapter(student_agent, obs_builder, name=name)
+        policy_observation = policy_config.get("observation")
+        policy_obs_builder = obs_builder
+        if policy_observation is not None:
+            if not isinstance(policy_observation, dict):
+                raise PolicyLoadError("python_class policy.observation must be a mapping")
+            policy_obs_builder = ObservationBuilder(env, policy_observation)
+        base_agent = StudentAgentAdapter(student_agent, policy_obs_builder, name=name)
     else:
         raise PolicyLoadError(f"Unknown policy type '{policy_type}'. Use builtin or python_class")
 

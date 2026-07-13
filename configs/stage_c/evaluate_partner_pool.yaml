@@ -1,0 +1,93 @@
+paths_relative_to_config: true
+mode: evaluate
+seed: 67
+
+environment:
+  layout_name: asymmetric_advantages
+  layout_file: null
+  horizon: 400
+  old_dynamics: true
+
+observation:
+  type: featurized
+  include_agent_index: true
+
+policies:
+  agent_0:
+    type: python_class
+    name: stage_c_ego
+    path: ../../policies/rl_policy.py
+    class_name: StudentAgent
+    config:
+      checkpoint_path: ../../outputs/stage_c_asymmetric_partner_pool_seed67/checkpoints/inference.pt
+      device: auto
+      deterministic: true
+    max_action_time_ms: 100
+    invalid_action: stay
+    timeout_action: stay
+  # Suite evaluation replaces this placeholder with each configured partner.
+  agent_1:
+    type: builtin
+    name: stay
+    max_action_time_ms: 100
+
+execution:
+  num_episodes: 3
+  episode_seeds: [67, 68, 69]
+  ego_player_positions: [0, 1]
+
+evaluation:
+  layouts: [asymmetric_advantages]
+  partners:
+    - name: greedy_full_task
+      policy:
+        type: builtin
+        name: greedy_full_task
+        max_action_time_ms: 100
+    - name: sticky_greedy
+      policy:
+        type: builtin
+        name: greedy_full_task
+        sticky_action_prob: 0.20
+        max_action_time_ms: 100
+    - name: sticky_random_greedy
+      policy:
+        type: builtin
+        name: greedy_full_task
+        sticky_action_prob: 0.20
+        random_action_prob: 0.10
+        max_action_time_ms: 100
+    - name: random_motion
+      policy:
+        type: builtin
+        name: random_motion
+        max_action_time_ms: 100
+    - name: frozen_sp_seed67
+      policy:
+        type: python_class
+        name: frozen_sp_seed67
+        path: ../../policies/rl_policy.py
+        class_name: StudentAgent
+        observation:
+          type: featurized
+          include_agent_index: false
+        config:
+          checkpoint_path: ../../outputs/asymmetric_ablation_no_agent_index_200k/checkpoint_evaluation/selected/inference.pt
+          device: auto
+          deterministic: true
+        max_action_time_ms: 100
+  seeds: [67, 68, 69]
+  player_positions: [0, 1]
+  inference_modes: [deterministic, stochastic]
+
+rendering:
+  mode: none
+
+logging:
+  output_dir: ../../outputs/stage_c_asymmetric_partner_pool_seed67/evaluation
+  save_step_log: false
+  save_episode_summary: true
+  save_trajectory_pickle: false
+
+data_collection:
+  enabled: false

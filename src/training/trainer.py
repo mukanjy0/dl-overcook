@@ -1,4 +1,4 @@
-"""Reusable orchestration for Stage A PPO self-play training."""
+"""Reusable orchestration for self-play and frozen-partner PPO training."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import time
+from collections import Counter
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -25,9 +26,14 @@ from src.experiment_config import StageAConfig
 from src.models.actor_critic import ActorCritic, ActorCriticConfig
 from src.models.interfaces import ObservationSpec
 from src.observations import ObservationBuilder
+from src.partners.samplers import build_ego_position_sampler, build_partner_sampler
 from src.seed_utils import derive_seed, set_global_seed
+from src.state_augmentation.sources import (
+    build_training_state_source,
+    state_source_metrics,
+)
 from src.training.ppo import PPOConfig, PPOUpdater
-from src.training.rollouts import SelfPlayRolloutCollector
+from src.training.rollouts import FrozenPartnerRolloutCollector, SelfPlayRolloutCollector
 
 LOGGER = logging.getLogger(__name__)
 
@@ -126,7 +132,7 @@ def train(
     *,
     output_root_override: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Train, checkpoint, and export one Stage A self-play actor-critic."""
+    """Train, checkpoint, and export a self-play or frozen-partner actor-critic."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     output_root, logs_dir, checkpoints_dir, metrics_dir, export_path = _output_paths(
         config,
@@ -164,6 +170,20 @@ def train(
         probe_builder(probe_env.state, 0),
         obs_type=config.observation.type,
     )
+    state_source = build_training_state_source(
+        reset_mode=config.state_augmentation.reset_mode,
+        buffer_path=config.state_augmentation.buffer_path,
+        augmented_probability=config.state_augmentation.augmented_probability,
+        env=probe_env,
+        environment_config=config.environment.config,
+    )
+    if config.state_augmentation.reset_mode != "standard":
+        LOGGER.info(
+            "State augmentation enabled: mode=%s probability=%.3f buffer=%s",
+            config.state_augmentation.reset_mode,
+            config.state_augmentation.augmented_probability,
+            config.state_augmentation.buffer_path,
+        )
     model_config = ActorCriticConfig.from_dict(config.model.parameters)
     model = ActorCritic(
         input_size=observation_spec.encoded_size,
@@ -173,23 +193,43 @@ def train(
     ppo_config = PPOConfig.from_dict(config.training.ppo)
     optimizer = torch.optim.Adam(model.parameters(), lr=ppo_config.learning_rate, eps=1e-5)
     updater = PPOUpdater(model, optimizer, ppo_config)
-    collector = SelfPlayRolloutCollector(
-        environment_config=config.environment.config,
-        observation_config=observation_config,
-        observation_spec=observation_spec,
-        num_environments=config.training.num_environments,
-        base_seed=base_seed,
-        device=device,
-        reward_shaping=config.training.reward_shaping,
-    )
+    partner_sampler = build_partner_sampler(config.partner)
+    if str(config.partner.get("sampler", "self_play")).lower() == "self_play":
+        collector = SelfPlayRolloutCollector(
+            environment_config=config.environment.config,
+            observation_config=observation_config,
+            observation_spec=observation_spec,
+            num_environments=config.training.num_environments,
+            base_seed=base_seed,
+            device=device,
+            reward_shaping=config.training.reward_shaping,
+            state_source=state_source,
+        )
+    else:
+        collector = FrozenPartnerRolloutCollector(
+            environment_config=config.environment.config,
+            observation_config=observation_config,
+            observation_spec=observation_spec,
+            num_environments=config.training.num_environments,
+            base_seed=base_seed,
+            device=device,
+            reward_shaping=config.training.reward_shaping,
+            partner_sampler=partner_sampler,
+            position_sampler=build_ego_position_sampler(config.partner),
+            state_source=state_source,
+        )
 
     trainer_state: dict[str, Any] = {"update": 0, "environment_steps": 0}
     if config.checkpoint.resume_from is not None:
         LOGGER.info("Resuming checkpoint %s", config.checkpoint.resume_from)
+        if not config.checkpoint.load_optimizer_state:
+            LOGGER.info("Loading model and trainer counters with a fresh optimizer")
         resumed = load_training_checkpoint(
             config.checkpoint.resume_from,
             model=model,
-            optimizer=optimizer,
+            optimizer=(
+                optimizer if config.checkpoint.load_optimizer_state else None
+            ),
             scheduler=None,
         )
         trainer_state.update(resumed.get("trainer_state", {}) or {})
@@ -210,6 +250,8 @@ def train(
         else None
     )
     recent_episode_returns: list[float] = []
+    partner_step_counts: Counter[str] = Counter()
+    ego_position_step_counts: Counter[str] = Counter()
     starting_environment_steps = int(trainer_state["environment_steps"])
     training_started_at = time.perf_counter()
     latest_checkpoint: Path | None = None
@@ -225,6 +267,10 @@ def train(
             "progress_percent": 100.0 * starting_environment_steps / config.training.total_steps,
             "steps_per_second": None,
             "eta_seconds": None,
+            "state_initialization": {
+                "reset_mode": config.state_augmentation.reset_mode,
+                **state_source_metrics(state_source),
+            },
         },
     )
 
@@ -251,6 +297,8 @@ def train(
             int(trainer_state["environment_steps"]) + rollout.num_environment_steps
         )
         recent_episode_returns.extend(rollout.completed_sparse_returns)
+        partner_step_counts.update(rollout.partner_step_counts)
+        ego_position_step_counts.update(rollout.ego_position_step_counts)
         record = {
             "update": int(trainer_state["update"]),
             "environment_steps": int(trainer_state["environment_steps"]),
@@ -260,6 +308,12 @@ def train(
                 if rollout.completed_sparse_returns
                 else None
             ),
+            "partner_step_counts": rollout.partner_step_counts,
+            "ego_position_step_counts": rollout.ego_position_step_counts,
+            "state_initialization": {
+                "reset_mode": config.state_augmentation.reset_mode,
+                **state_source_metrics(state_source),
+            },
             **update_metrics,
         }
         if next_save_step is not None and int(trainer_state["environment_steps"]) >= next_save_step:
@@ -349,6 +403,12 @@ def train(
             if recent_episode_returns
             else None
         ),
+        "partner_step_counts": dict(partner_step_counts),
+        "ego_position_step_counts": dict(ego_position_step_counts),
+        "state_initialization": {
+            "reset_mode": config.state_augmentation.reset_mode,
+            **state_source_metrics(state_source),
+        },
         "training_checkpoint": str(final_checkpoint),
         "inference_artifact": str(export_path),
         "metrics": str(metrics_path),

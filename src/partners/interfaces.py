@@ -6,6 +6,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from src.observations import ObservationBuilder
 from src.policy_loader import build_policy
 
 
@@ -15,6 +16,7 @@ class PartnerSpec:
 
     name: str
     policy_config: dict[str, Any] | None = None
+    observation_config: dict[str, Any] | None = None
     source: str = "configured"
 
 
@@ -46,9 +48,15 @@ class ConfiguredPartnerFactory:
         del player_position
         if spec.policy_config is None:
             raise ValueError(f"Partner '{spec.name}' has no policy configuration")
+        partner_observation_builder = observation_builder
+        if spec.observation_config is not None:
+            partner_observation_builder = ObservationBuilder(
+                env,
+                deepcopy(spec.observation_config),
+            )
         return build_policy(
             deepcopy(spec.policy_config),
             env,
-            observation_builder,
+            partner_observation_builder,
             seed=seed,
         )

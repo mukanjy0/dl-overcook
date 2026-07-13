@@ -1,0 +1,36 @@
+paths_relative_to_config: true
+seed: 67
+
+environment:
+  layout_name: cramped_room
+  layout_file: null
+  horizon: 20
+  old_dynamics: true
+  mdp_overrides: {}
+
+observation:
+  type: featurized
+  include_agent_index: true
+
+collection:
+  output_path: ../../outputs/stage_b/buffers/example.json.gz
+  every_k: 5
+  include_initial_state: true
+  num_episodes: 1
+  episode_seeds: [67]
+  pairings:
+    - id: scripted_cross_play
+      player_0:
+        identifier: greedy_full_task
+        source: teacher_scripted
+        policy:
+          type: builtin
+          name: greedy_full_task
+          max_action_time_ms: 0
+      player_1:
+        identifier: random_motion
+        source: teacher_scripted
+        policy:
+          type: builtin
+          name: random_motion
+          max_action_time_ms: 0

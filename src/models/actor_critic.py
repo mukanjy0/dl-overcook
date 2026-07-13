@@ -1,4 +1,4 @@
-"""Small shared-backbone actor-critic used by Stage A PPO."""
+"""Small shared-backbone actor-critic used by PPO training."""
 
 from __future__ import annotations
 
@@ -100,7 +100,7 @@ class ActorCriticInferencePolicy:
         self.model.eval()
 
     def reset(self) -> None:
-        """The Stage A feed-forward model has no recurrent episode state."""
+        """The feed-forward model has no recurrent episode state."""
 
     def act(self, observation: Any, deterministic: bool = True) -> int:
         encoded = self.observation_spec.encode(observation)

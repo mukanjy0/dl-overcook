@@ -1,4 +1,4 @@
-# Stage A architecture
+# Stage A architecture and opt-in Stage B/C extensions
 
 ## Compatibility spine
 
@@ -6,7 +6,7 @@ The existing execution path remains authoritative:
 
 ```text
 YAML -> build_env -> ObservationBuilder -> build_policy
-     -> StudentAgentAdapter -> safety/epsilon wrappers
+     -> StudentAgentAdapter -> safety/random/sticky wrappers
      -> AgentPair -> run_episode -> runner/evaluator hooks
 ```
 
@@ -30,10 +30,18 @@ demonstrations, rendering, or Kaggle code.
   timeouts are counted for ego, partner, and team.
 - `src/models/` owns the stable inference/trainable policy contracts,
   observation metadata, and the shared actor-critic.
-- `src/training/` owns self-play rollout collection, PPO updates, and reusable
-  training orchestration. Both player positions use the current model in Stage A.
+- `src/training/` owns self-play and frozen-partner rollout collection, PPO
+  updates, and reusable training orchestration. Both player positions use the
+  current model in Stage A. Stage C emits PPO transitions only for the ego;
+  configured partner sessions never enter the optimizer.
+- `src/state_augmentation/` owns Stage B trajectory collection, exact state
+  serialization/restoration, versioned buffer storage, deterministic sampling,
+  compatibility validation, and buffered reset sources. PPO only sees the
+  existing `StateSource` interface.
 - `src/partners/` owns partner specifications, fresh-session construction, and
-  sampling. Stage A exposes only current-policy self-play.
+  sampling. Stage A selects current-policy self-play. Opt-in Stage C selects a
+  weighted pool or one exact frozen partner and balances the ego across physical
+  player positions.
 - `src/evaluation/` owns layout/partner/seed/position suites built on the normal
   runner. Canonical compatibility evaluation loads the ego via `build_policy`.
   Suite reports separate deterministic and stochastic inference and summarize
@@ -47,9 +55,10 @@ demonstrations, rendering, or Kaggle code.
   deterministic minimum-position score and deterministic mean official score.
 - `src/checkpointing.py` is the only checkpoint serialization and validation
   boundary.
-- `src/experiment_config.py` validates Stage A training configuration and
-  resolves paths relative to the YAML file. Existing YAMLs opt into this path
-  resolution only with `paths_relative_to_config: true`.
+- `src/experiment_config.py` validates Stage A and opt-in Stage B/C training
+  configuration and resolves paths relative to the YAML file. Existing runtime
+  YAMLs opt into this path resolution only with
+  `paths_relative_to_config: true`.
 - `scripts/` contains thin local/remote orchestration. Kaggle code packages and
   invokes these entry points; it does not implement learning or evaluation.
 
@@ -60,6 +69,8 @@ demonstrations, rendering, or Kaggle code.
   owning optimizer or rollout state.
 - `PartnerFactory.build` creates a fresh configured partner through the existing
   loader; `PartnerSampler.sample` selects a `PartnerSpec`.
+- `EgoPositionSampler.sample` selects the ego's physical player position. The
+  Stage C implementation alternates positions with a seeded initial choice.
 - `StateSource.sample` optionally supplies an upstream `OvercookedState` at
   reset. `StandardStateSource` selects the standard start.
 - `evaluate_from_config` evaluates configured suites through `run_from_config`.
@@ -91,10 +102,14 @@ short train -> training checkpoint -> resume -> inference export
 
 ## Configuration and execution environments
 
-Stage A YAML separates experiment, environment, observation, model, training,
-partner, evaluation, checkpoint, and output sections. The experiment seed is
-the source for deterministic model/environment/partner streams. No core module
-contains a Kaggle path, layout choice, checkpoint location, or device choice.
+Training YAML separates experiment, environment, observation, model, training,
+partner, state-augmentation, evaluation, checkpoint, and output sections. The
+experiment seed is the source for deterministic
+model/environment/partner/position/reset streams. Stage B is disabled unless
+`state_augmentation.reset_mode` is explicitly changed from `standard`; Stage C
+is disabled unless `partner.sampler` is explicitly changed from `self_play` to
+`weighted_pool` or `exact`. No core module contains a Kaggle path, layout
+choice, checkpoint location, partner name, or device choice.
 
 Local `.venv` and Kaggle use the same `scripts/train.py` and YAML. Kaggle only
 overrides the output root and records the effective dependency/CUDA state and a
@@ -107,9 +122,50 @@ or linearly anneal when `entropy_final_coefficient` and optionally
 `entropy_anneal_steps` are set under `training.ppo`. Each training metrics record
 contains the effective entropy coefficient used for that update.
 
+## Stage C frozen-partner path
+
+At each new episode, the frozen-partner collector samples a `PartnerSpec`,
+samples the balanced ego position, and asks `ConfiguredPartnerFactory` for a
+fresh partner session. The factory delegates to the unchanged `build_policy`
+signature, so teacher builtins, perturbation wrappers, and exported inference
+artifacts share normal runner semantics. A checkpoint partner may declare its
+own observation builder without changing the ego observation contract.
+
+Weighted sampling is normalized from positive configuration weights. Exact
+sampling selects one named entry from the same pool format, which keeps
+best-response fine-tuning a configuration change rather than a separate
+algorithm. Training metrics record partner and ego-position environment-step
+counts. Evaluation remains the normal suite evaluator and reports every partner
+case separately with per-position metrics in deterministic and stochastic ego
+modes.
+
+See [stage_c_partners.md](stage_c_partners.md) for the configuration contract and
+commands.
+
+## Stage B state-augmentation path
+
+Collection configurations define complete physical policy pairings. Each
+policy session is built through `ConfiguredPartnerFactory`, and the canonical
+episode loop exposes reset/step hooks for sampling without a second environment
+implementation. Buffers record the full collection configuration and source
+provenance, then validate every state against an exact environment fingerprint
+before PPO starts.
+
+At reset, a seeded `BufferedStateSource` selects the normal state, a uniformly
+sampled augmented state, or a configured mixture. The environment adapter
+deep-copies each restored state. Evaluation and official scoring do not use this
+training-only reset path. See
+[stage_b_state_augmentation.md](stage_b_state_augmentation.md) for the schema,
+commands, and failure modes.
+
+Restoration preserves the state's absolute timestep, so the normal case retains
+the source trajectory's remaining horizon. Horizon itself is not part of the
+transition fingerprint: a target horizon may differ if every stored state is
+still nonterminal. Environment reset still clears upstream event/reward stats,
+and policy sessions are reset through their existing lifecycle.
+
 ## Later extension points
 
-Stage B can add trajectory-backed `StateSource` implementations. Stage C can
-add frozen partner pools and samplers. Stage D can add broader configuration
-suites and checkpoint selection. These additions should implement the existing
-interfaces without replacing the teacher-compatible spine.
+Stage D can add broader configuration suites and checkpoint selection. Later
+additions should implement the existing interfaces without replacing the
+teacher-compatible spine.

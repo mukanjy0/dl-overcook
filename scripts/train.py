@@ -1,4 +1,4 @@
-"""Thin local/Kaggle entry point for Stage A training."""
+"""Thin local/Kaggle entry point for Stage A and Stage C training."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from src.training.trainer import train
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", required=True, help="Stage A training YAML")
+    parser.add_argument("--config", required=True, help="Training YAML")
     parser.add_argument(
         "--output-root",
         default=None,
