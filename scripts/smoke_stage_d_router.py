@@ -10,14 +10,16 @@ from src.runner import run_from_config
 
 
 SCENARIOS = (
-    ("asymmetric_advantages", 67, {"name": "greedy_full_task"}),
+    ("asymmetric_advantages", None, 67, {"name": "greedy_full_task"}),
     (
         "coordination_ring",
+        None,
         0,
         {"name": "greedy_full_task", "sticky_action_prob": 0.10},
     ),
     (
         "counter_circuit",
+        None,
         0,
         {
             "name": "greedy_full_task",
@@ -25,6 +27,7 @@ SCENARIOS = (
             "random_action_prob": 0.10,
         },
     ),
+    ("scenario_4", "configs/layouts/scenario_4.layout", 30, {"name": "random_motion"}),
 )
 
 
@@ -60,13 +63,14 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     results = []
-    for layout_name, seed, partner_config in SCENARIOS:
+    for layout_name, layout_file, seed, partner_config in SCENARIOS:
         for ego_position in (0, 1):
             result = run_from_config(
                 {
                     "seed": seed,
                     "environment": {
-                        "layout_name": layout_name,
+                        "layout_name": None if layout_file else layout_name,
+                        "layout_file": layout_file,
                         "horizon": args.horizon,
                         "old_dynamics": True,
                     },
