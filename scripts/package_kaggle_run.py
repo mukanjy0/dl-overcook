@@ -13,12 +13,14 @@ KAGGLE_MAIN = '''"""Generated Kaggle orchestration; core logic remains in projec
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 import traceback
 from pathlib import Path
 
-PROJECT = Path(__file__).resolve().parent / "project"
+PROJECT_ARCHIVE = Path(__file__).resolve().parent / "project.zip"
+PROJECT = Path("/kaggle/working/project")
 OUTPUT_ROOT = Path("/kaggle/working/stage_a")
 SUMMARY_PATH = Path("/kaggle/working/run_summary.json")
 CONFIG_PATH = PROJECT / {config_relative!r}
@@ -31,6 +33,9 @@ def write_summary(status: str, **values) -> None:
 
 write_summary("running", config=str(CONFIG_PATH), output_root=str(OUTPUT_ROOT))
 try:
+    if PROJECT.exists():
+        shutil.rmtree(PROJECT)
+    shutil.unpack_archive(PROJECT_ARCHIVE, PROJECT)
     subprocess.run(
         [
             sys.executable,
@@ -133,6 +138,11 @@ def package_run(
     outputs_dir.mkdir(parents=True)
 
     config_relative = _copy_project(project_root, project_dir, config_path)
+    shutil.make_archive(
+        str(input_dir / "project"),
+        "zip",
+        root_dir=project_dir,
+    )
     (input_dir / "main.py").write_text(
         KAGGLE_MAIN.format(config_relative=config_relative),
         encoding="utf-8",

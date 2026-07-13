@@ -41,10 +41,12 @@ def test_kaggle_package_uses_skill_layout_and_shared_entrypoint(
     input_dir = package_root / "input"
     assert (package_root / "outputs").is_dir()
     assert (input_dir / "project" / "scripts" / "train.py").is_file()
+    assert (input_dir / "project.zip").is_file()
     generated_main = (input_dir / "main.py").read_text(encoding="utf-8")
     ast.parse(generated_main)
     assert "run_summary.json" in generated_main
     assert "scripts\" / \"train.py" in generated_main
+    assert "shutil.unpack_archive(PROJECT_ARCHIVE, PROJECT)" in generated_main
 
     metadata = json.loads(
         (input_dir / "kernel-metadata.json").read_text(encoding="utf-8")

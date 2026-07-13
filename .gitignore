@@ -15,3 +15,6 @@ data/demonstrations/
 
 kaggle/*/outputs/
 kaggle/*/input/project/
+kaggle/*/input/project.zip
+kaggle/*/input/main.py
+kaggle/*/input/kernel-metadata.json
