@@ -93,3 +93,72 @@ def test_asymmetric_stage_c_pair_uses_fresh_streams_and_exact_budget(
 
     assert exact.partner["sampler"] == "exact"
     assert pool.partner["sampler"] == "weighted_pool"
+
+
+def test_counter_circuit_stage_c_pilot_uses_the_disclosed_partner(
+    project_root: Path,
+) -> None:
+    config = load_experiment_config(
+        project_root / "configs/stage_c/counter_circuit_exact_partner_seed2_150k.yaml"
+    )
+
+    assert config.training.total_steps - 900096 == 150528
+    assert config.experiment.device == "cpu"
+    assert config.checkpoint.load_optimizer_state is False
+    assert config.checkpoint.restore_rng_state is False
+    assert config.partner["sampler"] == "exact"
+    assert config.partner["position_sampler"] == "balanced"
+    policy = config.partner["policies"][0]["policy"]
+    assert policy["sticky_action_prob"] == 0.10
+    assert policy["random_action_prob"] == 0.10
+    assert config.training.ppo["entropy_coefficient"] == 0.01
+    assert set(config.evaluation["player_positions"]) == {0, 1}
+    assert set(config.evaluation["inference_modes"]) == {
+        "deterministic",
+        "stochastic",
+    }
+
+
+def test_counter_circuit_stage_c_extension_preserves_the_pilot_stream(
+    project_root: Path,
+) -> None:
+    pilot = load_experiment_config(
+        project_root / "configs/stage_c/counter_circuit_exact_partner_seed2_150k.yaml"
+    )
+    extension = load_experiment_config(
+        project_root / "configs/stage_c/counter_circuit_exact_partner_seed2_300k.yaml"
+    )
+
+    assert extension.training.total_steps - 900096 == 300032
+    assert extension.training.total_steps - pilot.training.total_steps == 149504
+    assert extension.training.ppo == pilot.training.ppo
+    assert extension.partner == pilot.partner
+    assert extension.checkpoint.load_optimizer_state is True
+    assert extension.checkpoint.restore_rng_state is True
+
+
+def test_counter_circuit_stage_b_matrix_changes_only_reset_distribution(
+    project_root: Path,
+) -> None:
+    control = load_experiment_config(
+        project_root / "configs/stage_b/counter_circuit_exact_standard_seed2_200k.yaml"
+    )
+    mixed = load_experiment_config(
+        project_root / "configs/stage_b/counter_circuit_exact_mixed050_seed2_200k.yaml"
+    )
+
+    assert control.training.total_steps - 1200128 == 200704
+    assert control.experiment.seed == mixed.experiment.seed == 2
+    assert control.environment == mixed.environment
+    assert control.model == mixed.model
+    assert control.training == mixed.training
+    assert control.partner == mixed.partner
+    assert control.evaluation == mixed.evaluation
+    assert control.state_augmentation.reset_mode == "standard"
+    assert mixed.state_augmentation.reset_mode == "mixed"
+    assert mixed.state_augmentation.augmented_probability == 0.5
+    assert mixed.state_augmentation.buffer_path is not None
+    for config in (control, mixed):
+        assert config.checkpoint.load_optimizer_state is False
+        assert config.checkpoint.restore_rng_state is False
+        assert config.experiment.device == "cpu"

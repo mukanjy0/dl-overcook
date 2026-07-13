@@ -1,0 +1,22 @@
+paths_relative_to_config: true
+seed: 2
+environment: {layout_name: counter_circuit, layout_file: null, horizon: 400, old_dynamics: true}
+observation: {type: featurized, include_agent_index: true}
+policies:
+  # Partner-capacity sanity check, not a candidate deployment policy.
+  agent_0: {type: builtin, name: greedy_full_task, max_action_time_ms: 100, invalid_action: stay, timeout_action: stay}
+evaluation:
+  layouts: [counter_circuit]
+  partners:
+    - name: disclosed_sticky_random_greedy
+      policy: {type: builtin, name: greedy_full_task, sticky_action_prob: 0.10, random_action_prob: 0.10, max_action_time_ms: 100}
+  seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+  player_positions: [0, 1]
+  inference_modes: [deterministic]
+rendering: {mode: none}
+logging:
+  output_dir: ../../outputs/counter_circuit_disclosed_partner_ceiling
+  save_step_log: false
+  save_episode_summary: true
+  save_trajectory_pickle: false
+data_collection: {enabled: false}
