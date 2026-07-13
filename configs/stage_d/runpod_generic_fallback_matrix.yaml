@@ -5,7 +5,7 @@ repository:
 pod:
   image: runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
   compute_type: CPU
-  cpu_flavor_ids: [CPU5C]
+  cpu_flavor_ids: [cpu5c]
   vcpu_count: 4
   cpu_flavor_priority: custom
   cloud_type: SECURE
