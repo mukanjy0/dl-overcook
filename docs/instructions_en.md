@@ -59,7 +59,15 @@ Each scenario awards a maximum grade. The group keeps the highest grade it achie
 
 ### **Scenario 4**
 
-- Layout: `<Revealed early on Monday>`
+- Layout: `configs/layouts/scenario_4.layout`
+    - Just change this:
+    ```
+    environment:
+      layout_name: null
+      layout_file: configs/layouts/scenario_4.layout
+      horizon: 400
+      old_dynamics: true
+    ```
 - Partner: `random_motion`
 - If an average of at least one soup is delivered: 12
 - Places 8–12: 14
