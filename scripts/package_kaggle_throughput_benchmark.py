@@ -483,7 +483,7 @@ def _write_package(
         "model_sources": [],
     }
     if use_gpu:
-        metadata["accelerator"] = "nvidiaTeslaT4"
+        metadata["machine_shape"] = "NvidiaTeslaT4"
     (input_dir / "kernel-metadata.json").write_text(
         json.dumps(metadata, indent=2), encoding="utf-8"
     )

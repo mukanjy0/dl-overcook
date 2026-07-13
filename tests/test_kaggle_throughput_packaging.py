@@ -45,7 +45,7 @@ def test_generated_pair_from_repository(tmp_path: Path, monkeypatch) -> None:
     gpu_metadata = json.loads((gpu / "input/kernel-metadata.json").read_text())
     assert cpu_metadata["enable_gpu"] is False
     assert cpu_metadata["id"].endswith("ae29971-test")
-    assert "accelerator" not in cpu_metadata
+    assert "machine_shape" not in cpu_metadata
     assert gpu_metadata["enable_gpu"] is True
     assert gpu_metadata["id"].endswith("ae29971-test")
-    assert gpu_metadata["accelerator"] == "nvidiaTeslaT4"
+    assert gpu_metadata["machine_shape"] == "NvidiaTeslaT4"

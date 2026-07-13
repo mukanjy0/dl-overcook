@@ -62,6 +62,10 @@ The paired benchmark packager archives the requested commit's runtime paths
 directly with `git archive`. Runtime-irrelevant papers and generated files are
 excluded to stay under Kaggle's script-size limit. It generates an identical
 `main.py` for CPU and T4; only kernel identity and accelerator metadata differ.
+The T4 package uses `machine_shape: NvidiaTeslaT4`, and the launch command also
+passes `--accelerator NvidiaTeslaT4`. Always verify the actual device recorded
+in `benchmark_result.json`; a GPU job assigned another model is diagnostic
+evidence, not a valid T4 comparison.
 
 ```bash
 .venv/bin/python scripts/package_kaggle_throughput_benchmark.py \
