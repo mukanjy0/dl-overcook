@@ -35,7 +35,9 @@ def test_generated_pair_from_repository(tmp_path: Path, monkeypatch) -> None:
     )
 
     assert (cpu / "input/main.py").read_bytes() == (gpu / "input/main.py").read_bytes()
-    compile((cpu / "input/main.py").read_text(), "main.py", "exec")
+    generated_main = (cpu / "input/main.py").read_text()
+    compile(generated_main, "main.py", "exec")
+    assert "sys.path.insert(0, str(PROJECT))" in generated_main
     cpu_metadata = json.loads((cpu / "input/kernel-metadata.json").read_text())
     gpu_metadata = json.loads((gpu / "input/kernel-metadata.json").read_text())
     assert cpu_metadata["enable_gpu"] is False

@@ -163,6 +163,7 @@ try:
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
     PROJECT_ARCHIVE.write_bytes(base64.b64decode(PROJECT_ARCHIVE_B64))
     shutil.unpack_archive(PROJECT_ARCHIVE, PROJECT)
+    sys.path.insert(0, str(PROJECT))
     archive_setup_seconds = time.perf_counter() - phase_started_at
 
     phase_started_at = time.perf_counter()
