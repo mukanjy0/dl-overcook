@@ -19,3 +19,4 @@ kaggle/*/input/project/
 kaggle/*/input/project.zip
 kaggle/*/input/main.py
 kaggle/*/input/kernel-metadata.json
+.runpod-launcher-metadata/
