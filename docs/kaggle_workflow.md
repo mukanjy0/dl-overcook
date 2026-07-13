@@ -67,6 +67,11 @@ passes `--accelerator NvidiaTeslaT4`. Always verify the actual device recorded
 in `benchmark_result.json`; a GPU job assigned another model is diagnostic
 evidence, not a valid T4 comparison.
 
+The generated benchmark harness installs `torch==2.5.1` from the CUDA 12.4
+wheel index in both sessions. This avoids comparing Kaggle's different
+preinstalled CPU and GPU PyTorch builds. Any future runtime-pin change must be
+made once in the shared harness and used for a fresh CPU/T4 pair.
+
 ```bash
 .venv/bin/python scripts/package_kaggle_throughput_benchmark.py \
   --commit ae29971 \
@@ -76,6 +81,10 @@ evidence, not a valid T4 comparison.
   --gpu-version v25 \
   --run-tag paired1
 ```
+
+Replace the example versions and run tag with unused values. Kaggle can retain
+an unusable slug after a rejected or failed first push, so retries should use a
+fresh tag instead of overwriting evidence.
 
 Launch CPU without an accelerator flag and T4 with the explicit accelerator:
 
