@@ -1,0 +1,9 @@
+seed_start: 0
+num_seeds: 30
+variants:
+  - name: symbolic_nearest_1
+    policy: {pot_strategy: nearest, blocked_threshold: 1, avoid_teammate: true}
+  - name: symbolic_nearest_3
+    policy: {pot_strategy: nearest, blocked_threshold: 3, avoid_teammate: true}
+  - name: symbolic_two_pot_2
+    policy: {pot_strategy: two_pot, blocked_threshold: 2, avoid_teammate: true}

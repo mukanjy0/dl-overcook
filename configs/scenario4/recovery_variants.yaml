@@ -1,0 +1,11 @@
+seed_start: 0
+num_seeds: 30
+variants:
+  - name: recovery_fixed_a_1
+    policy: {pot_strategy: fixed_a, blocked_threshold: 1, avoid_teammate: true}
+  - name: recovery_fixed_a_2
+    policy: {pot_strategy: fixed_a, blocked_threshold: 2, avoid_teammate: true}
+  - name: recovery_fixed_b_1
+    policy: {pot_strategy: fixed_b, blocked_threshold: 1, avoid_teammate: true}
+  - name: recovery_two_pot_1
+    policy: {pot_strategy: two_pot, blocked_threshold: 1, avoid_teammate: true}

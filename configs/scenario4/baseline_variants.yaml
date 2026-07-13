@@ -1,0 +1,9 @@
+seed_start: 0
+num_seeds: 30
+variants:
+  - name: builtin_greedy
+    builtin: greedy_full_task
+  - name: planner_nearest_noavoid
+    policy: {pot_strategy: nearest, blocked_threshold: 999, avoid_teammate: false}
+  - name: planner_nearest_avoid
+    policy: {pot_strategy: nearest, blocked_threshold: 999, avoid_teammate: true}

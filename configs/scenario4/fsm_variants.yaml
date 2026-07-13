@@ -1,0 +1,9 @@
+seed_start: 0
+num_seeds: 30
+variants:
+  - name: exact_fixed_a
+    policy: {pot_strategy: fixed_a, blocked_threshold: 999, avoid_teammate: false}
+  - name: exact_fixed_b
+    policy: {pot_strategy: fixed_b, blocked_threshold: 999, avoid_teammate: false}
+  - name: exact_nearest
+    policy: {pot_strategy: nearest, blocked_threshold: 999, avoid_teammate: false}
