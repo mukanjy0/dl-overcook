@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Iterable
-
 from overcooked_ai_py.mdp.actions import Action
-from overcooked_ai_py.mdp.overcooked_mdp import Recipe
 
 from policies.basic_policies import GreedyFullTaskPolicy
 
@@ -70,39 +67,10 @@ class Scenario4PlannerPolicy(GreedyFullTaskPolicy):
         # nearest switches its preferred pot after a blocked-target recovery.
         return list(reversed(pots)) if self._alternate else pots
 
-    def _choose_target(self, state) -> tuple[int, int] | None:
-        player = state.players[self.agent_index]
-        held = player.held_object
-        pot_states = self.mdp.get_pot_states(state)
+    def _pots_that_can_accept_ingredients(self, state, pot_states) -> list[tuple[int, int]]:
+        """Filter only ingredient assignment; retain the proven base task FSM."""
+        candidates = super()._pots_that_can_accept_ingredients(state, pot_states)
+        if self.pot_strategy in {"nearest", "two_pot"}:
+            return candidates
         assigned = set(self._assigned_pots(state, pot_states))
-
-        def pick(candidates: Iterable[tuple[int, int]]) -> tuple[int, int] | None:
-            candidates = [p for p in candidates if p in assigned]
-            return self._nearest(player.position, candidates)
-
-        ready = pick(pot_states.get("ready", []))
-        accepting = []
-        for count in range(Recipe.MAX_NUM_INGREDIENTS):
-            accepting.extend(pot_states.get("empty" if count == 0 else f"{count}_items", []))
-        accepting = [p for p in accepting if p in assigned]
-
-        if held is not None:
-            if held.name == "soup":
-                return self._nearest(player.position, self.mdp.get_serving_locations())
-            if held.name == "dish":
-                return ready
-            if held.name == "onion":
-                return self._nearest(player.position, accepting)
-            return None
-
-        if ready is not None:
-            dishes = self._counter_objects_by_name(state, "dish") or list(
-                self.mdp.get_dish_dispenser_locations()
-            )
-            return self._nearest(player.position, dishes)
-        if accepting:
-            onions = self._counter_objects_by_name(state, "onion") or list(
-                self.mdp.get_onion_dispenser_locations()
-            )
-            return self._nearest(player.position, onions)
-        return None
+        return [pot for pot in candidates if pot in assigned]
