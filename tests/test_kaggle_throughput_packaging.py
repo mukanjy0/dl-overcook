@@ -31,6 +31,7 @@ def test_generated_pair_from_repository(tmp_path: Path, monkeypatch) -> None:
         owner="test-owner",
         cpu_version="v1",
         gpu_version="v2",
+        run_tag="test",
     )
 
     assert (cpu / "input/main.py").read_bytes() == (gpu / "input/main.py").read_bytes()
@@ -38,6 +39,8 @@ def test_generated_pair_from_repository(tmp_path: Path, monkeypatch) -> None:
     cpu_metadata = json.loads((cpu / "input/kernel-metadata.json").read_text())
     gpu_metadata = json.loads((gpu / "input/kernel-metadata.json").read_text())
     assert cpu_metadata["enable_gpu"] is False
+    assert cpu_metadata["id"].endswith("ae29971-test")
     assert "accelerator" not in cpu_metadata
     assert gpu_metadata["enable_gpu"] is True
+    assert gpu_metadata["id"].endswith("ae29971-test")
     assert gpu_metadata["accelerator"] == "nvidiaTeslaT4"

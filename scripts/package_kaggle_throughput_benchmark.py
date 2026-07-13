@@ -483,6 +483,7 @@ def package_pair(
     owner: str,
     cpu_version: str,
     gpu_version: str,
+    run_tag: str | None = None,
     force: bool = False,
 ) -> tuple[Path, Path]:
     """Create byte-identical harnesses whose metadata differ only by accelerator and identity."""
@@ -495,11 +496,12 @@ def package_pair(
         commit=commit,
         config_relative=config_relative,
     )
+    slug_suffix = commit[:7] if not run_tag else f"{commit[:7]}-{run_tag}"
     cpu = _write_package(
         project_root=project_root,
         version=cpu_version,
-        kernel_id=f"{owner}/overcook-ppo-throughput-cpu-{commit[:7]}",
-        title=f"overcook-ppo-throughput-cpu-{commit[:7]}",
+        kernel_id=f"{owner}/overcook-ppo-throughput-cpu-{slug_suffix}",
+        title=f"overcook-ppo-throughput-cpu-{slug_suffix}",
         main_source=main_source,
         use_gpu=False,
         force=force,
@@ -507,8 +509,8 @@ def package_pair(
     gpu = _write_package(
         project_root=project_root,
         version=gpu_version,
-        kernel_id=f"{owner}/overcook-ppo-throughput-t4-{commit[:7]}",
-        title=f"overcook-ppo-throughput-t4-{commit[:7]}",
+        kernel_id=f"{owner}/overcook-ppo-throughput-t4-{slug_suffix}",
+        title=f"overcook-ppo-throughput-t4-{slug_suffix}",
         main_source=main_source,
         use_gpu=True,
         force=force,
@@ -523,6 +525,7 @@ def main() -> None:
     parser.add_argument("--owner", required=True)
     parser.add_argument("--cpu-version", required=True)
     parser.add_argument("--gpu-version", required=True)
+    parser.add_argument("--run-tag")
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
     project_root = Path(__file__).resolve().parents[1]
@@ -533,6 +536,7 @@ def main() -> None:
         owner=args.owner,
         cpu_version=args.cpu_version,
         gpu_version=args.gpu_version,
+        run_tag=args.run_tag,
         force=args.force,
     )
     print(cpu)

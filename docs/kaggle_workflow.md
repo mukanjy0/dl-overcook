@@ -69,7 +69,8 @@ excluded to stay under Kaggle's script-size limit. It generates an identical
   --config configs/stage_a/ablation_baseline_200k.yaml \
   --owner OWNER \
   --cpu-version v24 \
-  --gpu-version v25
+  --gpu-version v25 \
+  --run-tag paired1
 ```
 
 Launch CPU without an accelerator flag and T4 with the explicit accelerator:
