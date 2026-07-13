@@ -28,7 +28,7 @@ evaluation:
     - {name: stay, policy: {type: builtin, name: stay, max_action_time_ms: 100}}
   seeds: [301, 302, 303]
   player_positions: [0, 1]
-  inference_modes: [deterministic]
+  inference_modes: [deterministic, stochastic]
 checkpoint: {resume_from: null, save_interval: 100352, export_path: ../../outputs/ppo_generic_s201_300k/checkpoints/inference.pt}
 outputs:
   root: ../../outputs/ppo_generic_s201_300k

@@ -64,8 +64,8 @@ def test_stage_d_mapping_covers_known_layouts_and_explicit_fallback(project_root
         ("coordination_ring", 1): "cr_p010_s11_step1050624",
         ("counter_circuit", 0): "cc_exact_long_seed3_step1902592",
         ("counter_circuit", 1): "cc_exact_long_seed3_step1902592",
-        ("unseen_layout", 0): "generic_greedy_fallback",
-        ("unseen_layout", 1): "generic_greedy_fallback",
+        ("unseen_layout", 0): "generic_task_planner_recovery",
+        ("unseen_layout", 1): "generic_task_planner_recovery",
     }
 
     for route, specialist_id in expected.items():
