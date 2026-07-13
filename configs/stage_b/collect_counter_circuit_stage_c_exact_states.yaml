@@ -1,0 +1,40 @@
+paths_relative_to_config: true
+seed: 20260713
+environment: {layout_name: counter_circuit, layout_file: null, horizon: 400, old_dynamics: true, mdp_overrides: {}}
+observation: {type: featurized, include_agent_index: true}
+collection:
+  output_path: ../../outputs/stage_b/buffers/counter_circuit_stage_c_exact_stochastic.json.gz
+  every_k: 5
+  include_initial_state: true
+  num_episodes: 32
+  episode_seeds: [4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008, 4009, 4010, 4011, 4012, 4013, 4014, 4015, 4016, 4017, 4018, 4019, 4020, 4021, 4022, 4023, 4024, 4025, 4026, 4027, 4028, 4029, 4030, 4031]
+  pairings:
+    - id: stochastic_ego_position_0
+      player_0: &stochastic_ego
+        identifier: cc_stage_c_stochastic_final
+        source: stage_c_exact_partner_checkpoint
+        observation: &featurized_observation {type: featurized, include_agent_index: true}
+        policy:
+          type: python_class
+          name: cc_stage_c_stochastic_final
+          path: ../../policies/rl_policy.py
+          class_name: StudentAgent
+          config:
+            checkpoint_path: ../../outputs/counter_circuit_exact_partner_seed2_300k/checkpoints/inference.pt
+            device: cpu
+            deterministic: false
+          max_action_time_ms: 100
+      player_1: &disclosed_partner
+        identifier: disclosed_sticky_random_greedy
+        source: teacher_scripted_disclosed
+        observation: *featurized_observation
+        policy:
+          type: builtin
+          name: greedy_full_task
+          sticky_action_prob: 0.10
+          random_action_prob: 0.10
+          max_action_time_ms: 100
+    - id: stochastic_ego_position_1
+      player_0: *disclosed_partner
+      player_1: *stochastic_ego
+

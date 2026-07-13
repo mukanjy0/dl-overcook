@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "overcook-stage-a"
+version = "0.1.0"
+description = "Teacher-compatible reinforcement-learning extensions for Overcooked-AI"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+  "overcooked-ai==1.1.0",
+  "numpy>=1.24,<2",
+  "scipy>=1.10,<2",
+  "PyYAML>=6.0",
+  "Pillow>=10.0",
+  "imageio>=2.31",
+  "torch>=2.2,<3",
+]
+
+[dependency-groups]
+dev = [
+  "kaggle>=1.8,<2; python_version >= '3.11'",
+  "pytest>=8.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*", "policies*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

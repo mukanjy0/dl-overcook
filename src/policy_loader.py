@@ -38,20 +38,26 @@ def import_class_from_file(path: str | Path, class_name: str):
         raise PolicyLoadError(f"Class '{class_name}' not found in {path}") from exc
 
 
-def build_builtin_agent(name: str, env, policy_config: dict[str, Any] | None = None):
+def build_builtin_agent(
+    name: str,
+    env,
+    policy_config: dict[str, Any] | None = None,
+    seed: int | None = None,
+):
     policy_config = policy_config or {}
     key = str(name).strip().lower()
+    policy_seed = policy_config.get("seed", seed)
 
     # Local readable baselines provided with this starter code.
     if key == "stay":
         return StayPolicy()
     if key == "random_motion":
-        return RandomMotionPolicy(seed=policy_config.get("seed"))
+        return RandomMotionPolicy(seed=policy_seed)
     if key == "greedy_full_task":
         return GreedyFullTaskPolicy(
             ingredient=policy_config.get("ingredient", "onion"),
             avoid_teammate=policy_config.get("avoid_teammate", True),
-            seed=policy_config.get("seed"),
+            seed=policy_seed,
         )
     if key == "human_keyboard":
         return HumanKeyboardPolicy(
@@ -79,7 +85,12 @@ def build_policy(policy_config: dict[str, Any], env, obs_builder: ObservationBui
     if policy_type == "builtin":
         if "name" not in policy_config:
             raise PolicyLoadError("Builtin policy requires field 'name'")
-        base_agent = build_builtin_agent(policy_config["name"], env, policy_config=policy_config)
+        base_agent = build_builtin_agent(
+            policy_config["name"],
+            env,
+            policy_config=policy_config,
+            seed=seed,
+        )
     elif policy_type == "python_class":
         if "path" not in policy_config:
             raise PolicyLoadError("python_class policy requires field 'path'")
@@ -87,9 +98,33 @@ def build_policy(policy_config: dict[str, Any], env, obs_builder: ObservationBui
         cls = import_class_from_file(policy_config["path"], class_name)
         student_config = policy_config.get("config", {}) or {}
         student_agent = cls(student_config)
-        base_agent = StudentAgentAdapter(student_agent, obs_builder, name=name)
+        policy_observation = policy_config.get("observation")
+        policy_obs_builder = obs_builder
+        if policy_observation is not None:
+            if not isinstance(policy_observation, dict):
+                raise PolicyLoadError("python_class policy.observation must be a mapping")
+            policy_obs_builder = ObservationBuilder(env, policy_observation)
+        base_agent = StudentAgentAdapter(student_agent, policy_obs_builder, name=name)
+    elif policy_type == "stage_d_router":
+        mapping_path = policy_config.get("specialist_mapping")
+        if not mapping_path:
+            raise PolicyLoadError("stage_d_router requires specialist_mapping")
+        from src.deployment.stage_d_router import StageDDeploymentRouter
+
+        base_agent = StageDDeploymentRouter(
+            layout_name=str(env.mdp.layout_name),
+            mapping_path=str(mapping_path),
+            policy_builder=lambda specialist_config: build_policy(
+                specialist_config,
+                env,
+                obs_builder,
+                seed=seed,
+            ),
+        )
     else:
-        raise PolicyLoadError(f"Unknown policy type '{policy_type}'. Use builtin or python_class")
+        raise PolicyLoadError(
+            f"Unknown policy type '{policy_type}'. Use builtin, python_class, or stage_d_router"
+        )
 
     return wrap_agent(base_agent, policy_config, seed=seed)
 

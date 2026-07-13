@@ -1,0 +1,4 @@
+interface:
+  display_name: "RunPod Experiments"
+  short_description: "Launch safe independent RunPod experiment jobs"
+  default_prompt: "Use $runpod to estimate, smoke-test, and launch this experiment matrix safely."

@@ -14,6 +14,7 @@ from overcooked_ai_py.agents.agent import Agent
 from overcooked_ai_py.mdp.actions import Action
 
 from src.constants import ACTION_NAME_TO_INDEX, NUM_ACTIONS, action_index_to_overcooked_action, action_name_to_index
+from src.seed_utils import derive_seed
 
 
 @dataclass
@@ -77,6 +78,51 @@ class EpsilonActionWrapper(Agent):
         action, info = self.base_agent.action(state)
         info = dict(info or {})
         info["random_override"] = False
+        return action, info
+
+
+class StickyActionWrapper(Agent):
+    """Repeat the previously executed action with a configured probability."""
+
+    def __init__(
+        self,
+        base_agent: Agent,
+        sticky_action_prob: float,
+        seed: int | None = None,
+    ):
+        super().__init__()
+        self.base_agent = base_agent
+        self.sticky_action_prob = float(sticky_action_prob)
+        if not 0.0 <= self.sticky_action_prob <= 1.0:
+            raise ValueError("sticky_action_prob must be in [0, 1]")
+        self.rng = np.random.default_rng(seed)
+        self.previous_action = None
+
+    def reset(self):
+        super().reset()
+        self.previous_action = None
+        if hasattr(self, "base_agent"):
+            self.base_agent.reset()
+
+    def set_agent_index(self, agent_index):
+        super().set_agent_index(agent_index)
+        self.base_agent.set_agent_index(agent_index)
+
+    def set_mdp(self, mdp):
+        super().set_mdp(mdp)
+        self.base_agent.set_mdp(mdp)
+
+    def action(self, state):
+        proposed_action, info = self.base_agent.action(state)
+        info = dict(info or {})
+        repeated = (
+            self.previous_action is not None
+            and self.sticky_action_prob > 0
+            and self.rng.random() < self.sticky_action_prob
+        )
+        action = self.previous_action if repeated else proposed_action
+        self.previous_action = action
+        info["sticky_action_repeated"] = repeated
         return action, info
 
 
@@ -197,8 +243,8 @@ def coerce_action_index(action_like: str | int) -> int:
 
 
 def wrap_agent(base_agent: Agent, config: dict[str, Any], seed: int | None = None) -> Agent:
-    """Apply safety and random-action wrappers according to YAML config."""
-    safe = SafeActionWrapper(
+    """Apply safety and configured action-perturbation wrappers."""
+    wrapped: Agent = SafeActionWrapper(
         base_agent,
         max_action_time_ms=config.get("max_action_time_ms", 100),
         invalid_action=config.get("invalid_action", "stay"),
@@ -206,5 +252,16 @@ def wrap_agent(base_agent: Agent, config: dict[str, Any], seed: int | None = Non
     )
     epsilon = float(config.get("random_action_prob", 0.0) or 0.0)
     if epsilon > 0:
-        return EpsilonActionWrapper(safe, random_action_prob=epsilon, seed=seed)
-    return safe
+        wrapped = EpsilonActionWrapper(
+            wrapped,
+            random_action_prob=epsilon,
+            seed=seed,
+        )
+    sticky_probability = float(config.get("sticky_action_prob", 0.0) or 0.0)
+    if sticky_probability > 0:
+        wrapped = StickyActionWrapper(
+            wrapped,
+            sticky_action_prob=sticky_probability,
+            seed=None if seed is None else derive_seed(seed, "sticky_action"),
+        )
+    return wrapped

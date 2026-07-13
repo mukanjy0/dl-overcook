@@ -1,0 +1,80 @@
+paths_relative_to_config: true
+seed: 20260713
+
+environment:
+  layout_name: coordination_ring
+  layout_file: null
+  horizon: 400
+  old_dynamics: true
+  mdp_overrides: {}
+
+observation:
+  type: featurized
+  include_agent_index: true
+
+collection:
+  output_path: ../../outputs/stage_b/buffers/coordination_ring_stage_a_crossplay_preflight.json.gz
+  every_k: 10
+  include_initial_state: true
+  num_episodes: 1
+  episode_seeds: [20260713]
+  pairings:
+    - id: seed0_seed1
+      player_0: &seed0
+        identifier: stage_a_seed0
+        source: frozen_checkpoint
+        observation: &checkpoint_observation
+          type: featurized
+          include_agent_index: true
+        policy:
+          type: python_class
+          name: stage_a_seed0
+          path: ../../policies/rl_policy.py
+          class_name: StudentAgent
+          config:
+            checkpoint_path: ../../outputs/baseline_coordination_ring_seed0_1m/checkpoint_evaluation/selected/inference.pt
+            device: cpu
+            deterministic: false
+          max_action_time_ms: 0
+      player_1: &seed1
+        identifier: stage_a_seed1
+        source: frozen_checkpoint
+        observation: *checkpoint_observation
+        policy:
+          type: python_class
+          name: stage_a_seed1
+          path: ../../policies/rl_policy.py
+          class_name: StudentAgent
+          config:
+            checkpoint_path: ../../outputs/baseline_coordination_ring_seed1_1m/checkpoint_evaluation/selected/inference.pt
+            device: cpu
+            deterministic: false
+          max_action_time_ms: 0
+    - id: seed1_seed0
+      player_0: *seed1
+      player_1: *seed0
+    - id: seed0_seed2
+      player_0: *seed0
+      player_1: &seed2
+        identifier: stage_a_seed2
+        source: frozen_checkpoint
+        observation: *checkpoint_observation
+        policy:
+          type: python_class
+          name: stage_a_seed2
+          path: ../../policies/rl_policy.py
+          class_name: StudentAgent
+          config:
+            checkpoint_path: ../../outputs/baseline_coordination_ring_seed2_1m/checkpoint_evaluation/selected/inference.pt
+            device: cpu
+            deterministic: false
+          max_action_time_ms: 0
+    - id: seed2_seed0
+      player_0: *seed2
+      player_1: *seed0
+    - id: seed1_seed2
+      player_0: *seed1
+      player_1: *seed2
+    - id: seed2_seed1
+      player_0: *seed2
+      player_1: *seed1
