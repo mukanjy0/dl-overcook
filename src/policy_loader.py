@@ -105,8 +105,26 @@ def build_policy(policy_config: dict[str, Any], env, obs_builder: ObservationBui
                 raise PolicyLoadError("python_class policy.observation must be a mapping")
             policy_obs_builder = ObservationBuilder(env, policy_observation)
         base_agent = StudentAgentAdapter(student_agent, policy_obs_builder, name=name)
+    elif policy_type == "stage_d_router":
+        mapping_path = policy_config.get("specialist_mapping")
+        if not mapping_path:
+            raise PolicyLoadError("stage_d_router requires specialist_mapping")
+        from src.deployment.stage_d_router import StageDDeploymentRouter
+
+        base_agent = StageDDeploymentRouter(
+            layout_name=str(env.mdp.layout_name),
+            mapping_path=str(mapping_path),
+            policy_builder=lambda specialist_config: build_policy(
+                specialist_config,
+                env,
+                obs_builder,
+                seed=seed,
+            ),
+        )
     else:
-        raise PolicyLoadError(f"Unknown policy type '{policy_type}'. Use builtin or python_class")
+        raise PolicyLoadError(
+            f"Unknown policy type '{policy_type}'. Use builtin, python_class, or stage_d_router"
+        )
 
     return wrap_agent(base_agent, policy_config, seed=seed)
 

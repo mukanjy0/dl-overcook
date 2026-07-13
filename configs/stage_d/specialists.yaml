@@ -1,0 +1,78 @@
+schema_version: 1
+
+fallback:
+  id: generic_greedy_fallback
+  policy:
+    type: builtin
+    name: greedy_full_task
+    max_action_time_ms: 100
+    invalid_action: stay
+    timeout_action: stay
+
+layouts:
+  asymmetric_advantages:
+    positions:
+      "0":
+        id: aa_rl_position0_900096
+        artifact_sha256: f6c4289d14623895249615b0bc48e11217bef62c53ce0977c050e076eb3187a2
+        policy:
+          type: python_class
+          name: aa_rl_position0_900096
+          path: ../../policies/rl_policy.py
+          class_name: StudentAgent
+          observation: {type: featurized, include_agent_index: true}
+          config:
+            checkpoint_path: ../../outputs/stage_a_asymmetric_seed67/selected/inference_step_000900096.pt
+            device: cpu
+            deterministic: true
+          max_action_time_ms: 100
+          invalid_action: stay
+          timeout_action: stay
+      "1":
+        id: aa_greedy_position1
+        policy:
+          type: builtin
+          name: greedy_full_task
+          max_action_time_ms: 100
+          invalid_action: stay
+          timeout_action: stay
+
+  coordination_ring:
+    positions:
+      "0": &cr_specialist
+        id: cr_p010_s11_step1050624
+        artifact_sha256: 806f0fc17587e832aeb939378dd9ffdce0ea413a15cae6a24eb58698ac4bb42b
+        policy:
+          type: python_class
+          name: cr_p010_s11_step1050624
+          path: ../../policies/rl_policy.py
+          class_name: StudentAgent
+          observation: {type: featurized, include_agent_index: true}
+          config:
+            checkpoint_path: ../../outputs/stage_d_specialists/coordination_ring/inference.pt
+            device: cpu
+            deterministic: true
+          max_action_time_ms: 100
+          invalid_action: stay
+          timeout_action: stay
+      "1": *cr_specialist
+
+  counter_circuit:
+    positions:
+      "0": &cc_specialist
+        id: cc_exact_long_seed3_step1902592
+        artifact_sha256: 176623829c3f71c17e73865170e87a8b88db6ae55471590d759cbca917a3bf41
+        policy:
+          type: python_class
+          name: cc_exact_long_seed3_step1902592
+          path: ../../policies/rl_policy.py
+          class_name: StudentAgent
+          observation: {type: featurized, include_agent_index: true}
+          config:
+            checkpoint_path: ../../outputs/counter_circuit_exact_long_seed3_1m/checkpoint_evaluation/selected/inference.pt
+            device: cpu
+            deterministic: true
+          max_action_time_ms: 100
+          invalid_action: stay
+          timeout_action: stay
+      "1": *cc_specialist

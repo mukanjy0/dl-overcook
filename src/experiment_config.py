@@ -116,6 +116,11 @@ def _resolve_known_paths(config: dict[str, Any], base_dir: Path) -> dict[str, An
     def resolve_policy(policy: dict[str, Any]) -> None:
         if policy.get("path"):
             policy["path"] = _resolve_path(base_dir, policy["path"])
+        if policy.get("specialist_mapping"):
+            policy["specialist_mapping"] = _resolve_path(
+                base_dir,
+                policy["specialist_mapping"],
+            )
         policy_runtime = policy.get("config", {}) or {}
         for key in ("checkpoint_path", "model_path"):
             if policy_runtime.get(key):

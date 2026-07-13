@@ -1,0 +1,27 @@
+paths_relative_to_config: true
+environment:
+  layout_name: asymmetric_advantages
+  horizon: 20
+  old_dynamics: true
+observation: {type: featurized, include_agent_index: true}
+policies:
+  agent_0:
+    type: stage_d_router
+    specialist_mapping: specialists.yaml
+    max_action_time_ms: 100
+    invalid_action: stay
+    timeout_action: stay
+  agent_1:
+    type: builtin
+    name: greedy_full_task
+    max_action_time_ms: 100
+execution:
+  num_episodes: 1
+  episode_seeds: [67]
+  ego_player_positions: [0, 1]
+rendering: {mode: none}
+logging:
+  output_dir: ../../outputs/stage_d_smoke
+  save_step_log: false
+  save_episode_summary: true
+data_collection: {enabled: false}
