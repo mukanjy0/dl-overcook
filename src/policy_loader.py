@@ -12,6 +12,7 @@ from overcooked_ai_py.agents.agent import GreedyHumanModel, RandomAgent, StayAge
 
 from policies.basic_policies import GreedyFullTaskPolicy, RandomMotionPolicy, StayPolicy
 from policies.human_keyboard_policy import HumanKeyboardPolicy
+from policies.scenario4_policy import Scenario4PlannerPolicy
 
 from src.observations import ObservationBuilder
 from src.policy_wrappers import StudentAgentAdapter, wrap_agent
@@ -59,6 +60,8 @@ def build_builtin_agent(
             avoid_teammate=policy_config.get("avoid_teammate", True),
             seed=policy_seed,
         )
+    if key == "scenario4_planner":
+        return Scenario4PlannerPolicy(policy_config)
     if key == "human_keyboard":
         return HumanKeyboardPolicy(
             keymap=policy_config.get("keymap"),
@@ -73,7 +76,7 @@ def build_builtin_agent(
 
     raise PolicyLoadError(
         f"Unknown builtin policy '{name}'. Valid builtins: "
-        "stay, random_motion, random, greedy_full_task, human_keyboard, greedy_human_model"
+        "stay, random_motion, random, greedy_full_task, scenario4_planner, human_keyboard, greedy_human_model"
     )
 
 

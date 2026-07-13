@@ -23,10 +23,9 @@ def _policy(variant: dict, project_root: Path) -> dict:
             "timeout_action": "stay",
         }
     return {
-        "type": "python_class",
-        "path": str(project_root / "policies/scenario4_policy.py"),
-        "class_name": "Scenario4PlannerPolicy",
-        "config": variant,
+        "type": "builtin",
+        "name": "scenario4_planner",
+        **variant["policy"],
         "max_action_time_ms": 100,
         "invalid_action": "stay",
         "timeout_action": "stay",
