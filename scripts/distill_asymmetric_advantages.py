@@ -16,7 +16,7 @@ distillation.ENVIRONMENT = {
 }
 distillation.PARTNER_RANDOM_ACTION_PROB = 0.0
 distillation.PARTNER_STICKY_ACTION_PROB = 0.0
-distillation.TEACHER_CLASS = _AsymmetricReachableFullTask
+distillation.TEACHER_FACTORY = _AsymmetricReachableFullTask
 
 
 def _set_default_argument(name: str, value: str) -> None:

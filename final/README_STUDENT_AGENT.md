@@ -8,7 +8,7 @@
 | `asymmetric_advantages` | Distilled reachability-aware full-task neural specialist |
 | `coordination_ring` | Bundled guided PPO specialist from `scenario2_guided.py` |
 | `counter_circuit` | Distilled mixed-recipe neural specialist paired with the onion partner |
-| `scenario_4` | Existing fixed-pot-B scripted specialist |
+| `scenario_4` | Distilled fixed-pot-B neural specialist for both indexes |
 | Other layouts | Existing generic greedy fallback |
 
 ### Scenario 1 reachability repair
@@ -26,7 +26,32 @@ into the existing PPO-compatible actor-critic using learner-visited states.
 The unchanged teacher command produces 14 valid three-onion soups on every
 official seed, with score `140,420` per seed and no invalid recipe deliveries.
 
-### Why Scenario 3 uses a heuristic
+### Scenario 4 two-index distillation
+
+The validated fixed-pot-B policy was distilled into the same compact
+PPO-compatible actor-critic while alternating physical player indexes and
+rolling out against the disclosed noisy `random_motion` partner. Selection
+covered all eight official seed/index attempts and improved the minimum from 8
+to 9 soups while preserving the 9.375-soup mean. The scripted implementation is
+retained as the reproducible teacher, but the active route is neural.
+
+### Scenario 2 model cross-layout comparison
+
+The bundled Scenario 2 guided PPO model was also forced through every scenario
+before routing was finalized. It remained selected only for `coordination_ring`:
+it averaged 4--6 soups on Scenario 1 versus the selected model's 14, produced
+zero valid mixed soups on Scenario 3, and produced zero soups in every Scenario
+4 index-1 attempt. Its deterministic mode produced zero soups on all scenarios,
+so Scenario 2 keeps the intended stochastic inference mode.
+
+| Scenario | Guided model forced mean soups | Selected route mean soups |
+| --- | ---: | ---: |
+| 1 | 5.000 | 14.000 |
+| 2 | 4.000 | Same guided model in its native layout |
+| 3 | 0.000 | 7.500 |
+| 4 | 0.875 | 9.375 |
+
+### Why the Scenario 3 teacher uses a heuristic
 
 The disclosed `counter_circuit` orders all require both onion and tomato, while
 the disclosed greedy partner fetches onions. The previous PPO specialist and
@@ -50,8 +75,8 @@ at inference while correcting the previous interaction-only failure mode.
 
 The unchanged teacher command produced 8, 9, 6, and 7 positive-reward soups on
 the four official Scenario 3 seeds, with mean score `76,296.75` and no zero-soup
-seed. Scenario 4 remains unchanged at mean score `94,281.50` across both
-physical positions.
+seed. The distilled Scenario 4 route scores `94,313.38` across both physical
+positions.
 
 The agent requires the teacher state observation:
 
@@ -126,6 +151,8 @@ Only student-agent integration assets were added or changed:
   repaired from recipe-safe learner-visited demonstrations.
 - `policies/asymmetric_advantages_distilled.pt`: PPO-compatible Scenario 1
   network repaired from reachability-aware learner-visited demonstrations.
+- `policies/scenario4_distilled.pt`: position-aware neural distillation of the
+  fixed-pot-B Scenario 4 teacher.
 - `src/policy_wrappers.py`: forwards normal `set_mdp` and `set_agent_index`
   lifecycle calls to `StudentAgent`; this pre-initializes inference state outside
   the 100 ms action limit.
@@ -140,7 +167,8 @@ competition evaluator were not changed.
 | Asset | SHA-256 |
 | --- | --- |
 | `policies/stage_d_aa_position0.pt` | `f6c4289d14623895249615b0bc48e11217bef62c53ce0977c050e076eb3187a2` |
-| `policies/asymmetric_advantages_distilled.pt` | `55f5738f1b64e2fd233904ce0fad25d5e7ece2e802fcdebeafbb69c040cf1500` |
+| `policies/asymmetric_advantages_distilled.pt` | `09483cc3ff720de841f11145a87a786ddaef04910434176a8074f50caa05ea16` |
 | `policies/stage_d_counter_circuit.pt` | `176623829c3f71c17e73865170e87a8b88db6ae55471590d759cbca917a3bf41` |
 | `policies/counter_circuit_distilled.pt` | `68887668dce05d7589458241e225f250cfd2037ffd9bc78c7165ca3805724ce4` |
+| `policies/scenario4_distilled.pt` | `44c08353f16a776e3c746f38e4c7cea60316d1f3bd6b2266fe7666377f52dfa5` |
 | `policies/scenario2_guided_model.pt` | `7f7a20cc7a9e6d5d7821597bcac567a3372ec1588f17d85e3a0c983213c9711f` |

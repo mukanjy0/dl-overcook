@@ -25,6 +25,7 @@ _POLICIES = Path(__file__).resolve().parent
 _ARTIFACTS = {
     "asymmetric_advantages": _POLICIES / "asymmetric_advantages_distilled.pt",
     "counter_circuit": _POLICIES / "counter_circuit_distilled.pt",
+    "scenario_4": _POLICIES / "scenario4_distilled.pt",
 }
 _MODELS: dict[Path, "_ActorCritic"] = {}
 

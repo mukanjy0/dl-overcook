@@ -1,9 +1,10 @@
-"""Quickly repair the Counter Circuit PPO policy by dataset aggregation.
+"""Shared short dataset-aggregation engine, defaulting to Counter Circuit.
 
 The existing feed-forward actor-critic is retained, but its actor is distilled
-from the validated mixed-recipe specialist on states visited by both teacher
-and learner.  Checkpoint selection uses only positive sparse reward, never the
-recipe-agnostic soup-delivery event ledger.
+from a validated specialist on states visited by both teacher and learner.
+Checkpoint selection uses only positive sparse reward, never the
+recipe-agnostic soup-delivery event ledger. Thin scenario entry points replace
+the environment, partner, teacher, and evaluated physical positions.
 """
 
 from __future__ import annotations
@@ -57,7 +58,17 @@ ENVIRONMENT = {
 }
 PARTNER_RANDOM_ACTION_PROB = 0.05
 PARTNER_STICKY_ACTION_PROB = 0.15
-TEACHER_CLASS = _CounterCircuitMixedRecipe
+EGO_POSITIONS = (0,)
+TEACHER_FACTORY = _CounterCircuitMixedRecipe
+
+
+def _default_partner_factory(seed: int):
+    return GreedyFullTaskPolicy(
+        ingredient="onion", avoid_teammate=True, seed=seed
+    )
+
+
+PARTNER_FACTORY = _default_partner_factory
 
 
 def _load_actor(path: Path) -> tuple[dict, ActorCritic, ObservationSpec]:
@@ -73,29 +84,29 @@ def _load_actor(path: Path) -> tuple[dict, ActorCritic, ObservationSpec]:
     return payload, model, observation_spec
 
 
-def _new_partner(env, seed: int) -> EpsilonActionWrapper:
+def _new_partner(env, seed: int, agent_index: int) -> EpsilonActionWrapper:
     partner = EpsilonActionWrapper(
-        GreedyFullTaskPolicy(ingredient="onion", avoid_teammate=True, seed=seed),
+        PARTNER_FACTORY(seed),
         random_action_prob=PARTNER_RANDOM_ACTION_PROB,
         sticky_action_prob=PARTNER_STICKY_ACTION_PROB,
         seed=seed,
     )
     partner.reset()
-    partner.set_agent_index(1)
+    partner.set_agent_index(agent_index)
     partner.set_mdp(env.mdp)
     return partner
 
 
-def _teacher(env) -> GreedyFullTaskPolicy:
-    teacher = TEACHER_CLASS()
+def _teacher(env, agent_index: int) -> GreedyFullTaskPolicy:
+    teacher = TEACHER_FACTORY()
     teacher.reset()
-    teacher.set_agent_index(0)
+    teacher.set_agent_index(agent_index)
     teacher.set_mdp(env.mdp)
     return teacher
 
 
-def _encode(builder, spec: ObservationSpec, state) -> np.ndarray:
-    return spec.encode(builder(state, 0))
+def _encode(builder, spec: ObservationSpec, state, agent_index: int) -> np.ndarray:
+    return spec.encode(builder(state, agent_index))
 
 
 def _model_action(model: ActorCritic, encoded: np.ndarray) -> int:
@@ -109,6 +120,7 @@ def collect_episode(
     spec: ObservationSpec,
     *,
     seed: int,
+    ego_player_index: int,
     teacher_probability: float,
 ) -> tuple[list[np.ndarray], list[int]]:
     """Collect learner-visited observations labelled by the safe teacher."""
@@ -117,15 +129,17 @@ def collect_episode(
     builder = ObservationBuilder(
         env, {"type": "featurized", "include_agent_index": True}
     )
-    teacher = _teacher(env)
-    partner = _new_partner(env, seed + 2000)
+    teacher = _teacher(env, ego_player_index)
+    partner_player_index = 1 - ego_player_index
+    partner_seed = seed + (2000 if ego_player_index == 0 else 1000)
+    partner = _new_partner(env, partner_seed, partner_player_index)
     rng = np.random.default_rng(seed + 3000)
     observations: list[np.ndarray] = []
     labels: list[int] = []
     done = False
     while not done:
         state = env.state
-        encoded = _encode(builder, spec, state)
+        encoded = _encode(builder, spec, state, ego_player_index)
         teacher_action, _ = teacher.action(state)
         teacher_index = overcooked_action_to_index(teacher_action)
         observations.append(encoded)
@@ -136,9 +150,15 @@ def collect_episode(
             else _model_action(model, encoded)
         )
         partner_action, partner_info = partner.action(state)
+        joint_actions = [None, None]
+        joint_actions[ego_player_index] = action_index_to_overcooked_action(ego_index)
+        joint_actions[partner_player_index] = partner_action
+        joint_infos = [{}, {}]
+        joint_infos[ego_player_index] = {"policy_name": "distilled_ego"}
+        joint_infos[partner_player_index] = partner_info
         _, _, done, _ = env.step(
-            (action_index_to_overcooked_action(ego_index), partner_action),
-            ({"policy_name": "distilled_ego"}, partner_info),
+            tuple(joint_actions),
+            tuple(joint_infos),
         )
     return observations, labels
 
@@ -181,28 +201,50 @@ def evaluate(model: ActorCritic, spec: ObservationSpec) -> dict[str, object]:
     """Evaluate with the teacher's disclosed noise and positive reward only."""
     rewards: list[float] = []
     soups: list[int] = []
+    attempts: list[dict[str, int]] = []
     for seed in OFFICIAL_SEEDS:
-        env = build_env(ENVIRONMENT)
-        env.reset(regen_mdp=False)
-        builder = ObservationBuilder(
-            env, {"type": "featurized", "include_agent_index": True}
-        )
-        partner = _new_partner(env, seed + 2000)
-        done = False
-        sparse_return = 0.0
-        while not done:
-            state = env.state
-            ego_index = _model_action(model, _encode(builder, spec, state))
-            partner_action, partner_info = partner.action(state)
-            _, reward, done, _ = env.step(
-                (action_index_to_overcooked_action(ego_index), partner_action),
-                ({"policy_name": "distilled_ego"}, partner_info),
+        for ego_player_index in EGO_POSITIONS:
+            env = build_env(ENVIRONMENT)
+            env.reset(regen_mdp=False)
+            builder = ObservationBuilder(
+                env, {"type": "featurized", "include_agent_index": True}
             )
-            sparse_return += float(reward)
-        rewards.append(sparse_return)
-        soups.append(int(round(sparse_return / 20.0)))
+            partner_player_index = 1 - ego_player_index
+            partner_seed = seed + (2000 if ego_player_index == 0 else 1000)
+            partner = _new_partner(env, partner_seed, partner_player_index)
+            done = False
+            sparse_return = 0.0
+            while not done:
+                state = env.state
+                encoded = _encode(builder, spec, state, ego_player_index)
+                ego_action = action_index_to_overcooked_action(
+                    _model_action(model, encoded)
+                )
+                partner_action, partner_info = partner.action(state)
+                joint_actions = [None, None]
+                joint_actions[ego_player_index] = ego_action
+                joint_actions[partner_player_index] = partner_action
+                joint_infos = [{}, {}]
+                joint_infos[ego_player_index] = {"policy_name": "distilled_ego"}
+                joint_infos[partner_player_index] = partner_info
+                _, reward, done, _ = env.step(
+                    tuple(joint_actions), tuple(joint_infos)
+                )
+                sparse_return += float(reward)
+            attempt_soups = int(round(sparse_return / 20.0))
+            rewards.append(sparse_return)
+            soups.append(attempt_soups)
+            attempts.append(
+                {
+                    "seed": int(seed),
+                    "ego_player_index": int(ego_player_index),
+                    "soups": attempt_soups,
+                }
+            )
     return {
         "seeds": list(OFFICIAL_SEEDS),
+        "ego_positions": list(EGO_POSITIONS),
+        "attempts": attempts,
         "soups": soups,
         "minimum_soups": min(soups),
         "mean_soups": float(np.mean(soups)),
@@ -217,7 +259,10 @@ def save_inference(payload: dict, model: ActorCritic, destination: Path) -> None
         key: value.detach().cpu() for key, value in model.state_dict().items()
     }
     result["environment"] = dict(result.get("environment", {}))
-    result["environment"]["layout_name"] = "counter_circuit"
+    layout_name = ENVIRONMENT.get("layout_name")
+    if layout_name is None and ENVIRONMENT.get("layout_file"):
+        layout_name = Path(str(ENVIRONMENT["layout_file"])).stem
+    result["environment"]["layout_name"] = layout_name
     torch.save(result, destination)
 
 
@@ -257,10 +302,12 @@ def main() -> None:
         teacher_probability = max(0.05, 0.65 * (0.45 ** (iteration - 1)))
         for episode in range(args.episodes_per_iteration):
             episode_seed = args.seed + iteration * 10_000 + episode
+            ego_player_index = EGO_POSITIONS[episode % len(EGO_POSITIONS)]
             episode_observations, episode_labels = collect_episode(
                 model,
                 spec,
                 seed=episode_seed,
+                ego_player_index=ego_player_index,
                 teacher_probability=teacher_probability,
             )
             observations.extend(episode_observations)
