@@ -24,30 +24,34 @@ physical player index needed for routing and for the guided Scenario 2 encoder.
 
 ## Run the benchmark
 
-From the `final/` directory, use the repository's working virtual environment:
+The teacher-facing submission block in `configs/competition.yaml` is:
 
-```bash
-cd final
-PYTHONPATH=. ../.venv/bin/python -B run_student_agent_benchmark.py
+```yaml
+submissions:
+- name: grupo_XX
+  path: policies/template.py
+  class_name: StudentAgent
 ```
 
-The plain `python` command may be a pyenv shim and can fail if the version in
-the parent repository's `.python-version` file is not installed. The explicit
-virtual-environment path avoids that shim. Any other interpreter with `torch`,
-`numpy`, `pyyaml`, and `overcooked_ai_py` installed also works.
+From `final/`, run one scenario directly with the teacher command:
 
-The command executes the teacher policy-loading, wrapper, environment, partner,
-seed, horizon, and role-swap paths defined in `configs/competition.yaml`. It
-writes one row per rollout to `results/competition_agent_audit/per_attempt.csv`
-and prints a mean score and soup count for each enabled scenario.
+```bash
+python -m src.evaluate_competition --config configs/competition.yaml --scenario 1
+```
 
-Scenario 2 deliberately samples from its trained action distribution. The
-teacher-provided per-rollout seed is forwarded to Torch before that sampling,
-so a benchmark is reproducible for a fixed scenario/seed configuration.
+Run with rendering:
 
-The benchmark reads `env.game_stats['soup_delivery']`, which is the canonical
-delivery ledger for the installed old-dynamics environment. This avoids treating
-valid deliveries as zero when a transition omits a sparse reward/event field.
+```bash
+python -m src.evaluate_competition --config configs/competition.yaml --render
+```
+
+Use the Python interpreter supplied by the teacher environment. Locally, if
+`python` is a pyenv shim without the required version, invoke the same command
+with the repository's virtual-environment interpreter instead:
+
+```bash
+../.venv/bin/python -m src.evaluate_competition --config configs/competition.yaml --scenario 1
+```
 
 ## Self-contained bundle
 
@@ -73,7 +77,7 @@ Only student-agent integration assets were added or changed:
   lifecycle calls to `StudentAgent`; this pre-initializes inference state outside
   the 100 ms action limit.
 - `configs/competition.yaml`: requests the raw state observation required by the
-  student agent.
+  student agent and declares the standard three-field submission block.
 
 The teacher environment, layouts, partners, scoring implementation, and
 competition evaluator were not changed.
