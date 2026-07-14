@@ -1,4 +1,4 @@
-"""Benchmark the bundled ``final`` StudentAgent with the teacher rollout loop.
+"""Benchmark this bundled StudentAgent with the teacher rollout loop.
 
 The installed old-dynamics environment records deliveries in ``env.game_stats``
 rather than per-transition rewards, so this runner reads that canonical ledger
@@ -12,8 +12,7 @@ import sys
 from pathlib import Path
 
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-FINAL_ROOT = REPOSITORY_ROOT / "final"
+FINAL_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(FINAL_ROOT))
 
 import yaml

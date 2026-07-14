@@ -24,17 +24,18 @@ physical player index needed for routing and for the guided Scenario 2 encoder.
 
 ## Run the benchmark
 
-From the repository root, use the local environment:
+From the `final/` directory, use any Python environment containing the teacher
+dependencies (`torch`, `numpy`, `pyyaml`, and `overcooked_ai_py`):
 
 ```bash
-.venv/bin/python -B scripts/run_final_agent_benchmark.py
+cd final
+PYTHONPATH=. python -B run_student_agent_benchmark.py
 ```
 
 The command executes the teacher policy-loading, wrapper, environment, partner,
-seed, horizon, and role-swap paths defined in `final/configs/competition.yaml`.
-It writes one row per rollout to
-`final/results/competition_agent_audit/per_attempt.csv` and prints a mean score
-and soup count for each enabled scenario.
+seed, horizon, and role-swap paths defined in `configs/competition.yaml`. It
+writes one row per rollout to `results/competition_agent_audit/per_attempt.csv`
+and prints a mean score and soup count for each enabled scenario.
 
 Scenario 2 deliberately samples from its trained action distribution. The
 teacher-provided per-rollout seed is forwarded to Torch before that sampling,
@@ -43,6 +44,15 @@ so a benchmark is reproducible for a fixed scenario/seed configuration.
 The benchmark reads `env.game_stats['soup_delivery']`, which is the canonical
 delivery ledger for the installed old-dynamics environment. This avoids treating
 valid deliveries as zero when a transition omits a sparse reward/event field.
+
+## Self-contained bundle
+
+All project files needed at runtime are inside `final/`: the teacher harness,
+layouts, policy code, Scenario 2 inference helpers, and all three required
+model artifacts. The agent only resolves paths relative to its own files; it
+does not read the parent repository, external checkpoints, or local output
+directories. A Python environment with the listed third-party dependencies is
+still required, as it is for the teacher harness itself.
 
 ## What changed in `final/`
 
