@@ -9,6 +9,7 @@ __pycache__/
 htmlcov/
 
 outputs/
+final/results/
 runs/
 checkpoints/
 data/demonstrations/

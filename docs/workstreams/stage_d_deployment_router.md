@@ -1,5 +1,12 @@
 # Stage D deployment router
 
+> **Historical technical reference — superseded for submission routing.** This
+> document covers the earlier configuration-driven root router. The current
+> teacher-facing router and bundled weights are under `final/`; see
+> [`../../final/README_STUDENT_AGENT.md`](../../final/README_STUDENT_AGENT.md)
+> and [`../RESULTS.md`](../RESULTS.md). Keep this file for the original
+> integrity-check and lazy-cache design, not as a statement of current routes.
+
 Stage D adds no training and no specialist behavior.  It dispatches the existing,
 validated CPU inference specialists through the normal `build_policy` path.
 

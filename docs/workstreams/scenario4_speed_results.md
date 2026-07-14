@@ -1,5 +1,12 @@
 # Scenario 4 speed run
 
+> **Historical planner study.** The fixed-pot-B planner documented here was
+> retained as the Scenario 4 distillation teacher. The current `final/` route
+> is a two-index distilled actor selected with the current teacher benchmark;
+> see [`../../final/README_STUDENT_AGENT.md`](../../final/README_STUDENT_AGENT.md)
+> and [`../RESULTS.md`](../RESULTS.md). The planner sweep remains valuable
+> evidence for the original specialist choice.
+
 Winner: `scenario4_exact_fixed_pot_b`, a deterministic native planner that
 uses the existing collision-aware greedy task FSM and assigns ingredient work
 to fixed pot B.  No learned artifact is required.

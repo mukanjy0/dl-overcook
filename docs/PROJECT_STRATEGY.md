@@ -1,5 +1,11 @@
 # Project Strategy
 
+> **Historical planning reference.** This strategy guided the staged research
+> pipeline. For the current project narrative, results, and submission
+> boundary, start with [`../README.md`](../README.md),
+> [`RESULTS.md`](RESULTS.md), and
+> [`../final/README_STUDENT_AGENT.md`](../final/README_STUDENT_AGENT.md).
+
 ## Objective
 
 Maximize competition score and placement in the Overcooked-AI project while preserving compatibility with the teacher's `build_policy` workflow.

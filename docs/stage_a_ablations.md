@@ -1,5 +1,10 @@
 # Stage A asymmetric ablations
 
+> **Historical experiment report.** These controlled ablations remain useful
+> for interpreting the PPO research path, but their delivery accounting is not
+> the canonical final teacher metric. See [`RESULTS.md`](RESULTS.md) and
+> [`FAILURE_ANALYSIS.md`](FAILURE_ANALYSIS.md) before citing these values.
+
 The initial controlled comparison uses four 200,000-step self-play PPO runs on
 `asymmetric_advantages`, all with seed 67 and otherwise identical model,
 rollout, reward-shaping, and optimizer settings:

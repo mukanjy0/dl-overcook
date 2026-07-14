@@ -1,0 +1,56 @@
+# Stable local smoke: validates config → rollout → PPO update → checkpoint export.
+experiment:
+  name: ppo_smoke
+  seed: 67
+  device: cpu
+
+environment:
+  layout_name: cramped_room
+  layout_file: null
+  horizon: 20
+  old_dynamics: true
+  mdp_overrides: {}
+
+observation:
+  type: featurized
+  include_agent_index: true
+
+model:
+  architecture: mlp_actor_critic
+  parameters:
+    hidden_sizes: [32, 32]
+    activation: tanh
+
+training:
+  algorithm: ppo
+  total_steps: 64
+  num_environments: 2
+  rollout_steps: 8
+  reward_shaping: 1.0
+  ppo:
+    learning_rate: 0.0003
+    gamma: 0.99
+    gae_lambda: 0.95
+    clip_coefficient: 0.2
+    value_coefficient: 0.5
+    entropy_coefficient: 0.01
+    update_epochs: 1
+    minibatch_size: 32
+    max_grad_norm: 0.5
+
+partner:
+  sampler: self_play
+  policies: []
+
+evaluation: {}
+
+checkpoint:
+  resume_from: null
+  save_interval: 0
+  export_path: ../../outputs/ppo_smoke/checkpoints/inference.pt
+
+outputs:
+  root: ../../outputs/ppo_smoke
+  logs: ../../outputs/ppo_smoke/logs
+  checkpoints: ../../outputs/ppo_smoke/checkpoints
+  metrics: ../../outputs/ppo_smoke/metrics

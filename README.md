@@ -1,53 +1,114 @@
-# Overcooked-AI modular RL extension
+# Overcook: cooperative PPO agents for Overcooked-AI
 
-This repository preserves the teacher-provided Overcooked-AI runner and its
-`build_policy` contract while adding a small, configuration-driven Stage A PPO
-self-play implementation. The inference submission remains a normal
-`python_class` policy loaded by `src.policy_loader.build_policy`.
+`Overcook` is an experiment system for cooperative Overcooked-AI agents. It
+starts with self-play PPO, adds state and partner-distribution robustness
+experiments, and finishes with a teacher-compatible router for four disclosed
+competition layouts. The emphasis is on reproducible experiment design,
+evaluation, and deployment decisions—not on claiming a novel RL algorithm.
 
-## Setup
+> **Status:** stable submission bundle in [`final/`](final/); experimental
+> research pipeline in `src/`, `configs/`, and `scripts/`; historical local
+> artifacts remain under ignored `outputs/`.
 
-Python 3.10, 3.11, or 3.12 is supported. The repository pins Overcooked-AI 1.1.0,
-keeps NumPy below 2, and uses PyTorch for both learning and inference.
-SciPy is declared explicitly because Overcooked-AI 1.1.0 imports it without
-including it in its published dependency metadata.
+## Why this problem is difficult
+
+Overcooked is cooperative, partially coupled control: one policy's navigation,
+ingredient, pot, and delivery decisions alter the other policy's useful action
+space. A strong self-play policy can therefore learn a narrow coordination
+convention that fails with a different scripted, sticky, random, or learned
+partner. This project tests that failure mode explicitly through both physical
+player positions, fixed seeds, frozen partners, and zero-soup diagnostics.
+
+## Experimental process
+
+```mermaid
+flowchart LR
+    A[Stage A: PPO self-play\nlearn task execution] --> B[Stage B: state augmentation\nexpand reset-state coverage]
+    B --> C[Stage C: frozen partner pools\nand exact best responses]
+    C --> D[Stage D: layout router\nand teacher-compatible deployment]
+    D --> E[Final: targeted distillation\nfor the teacher evaluator]
+```
+
+The PPO experiments followed a fixed loop: formulate a partner/state-coverage
+hypothesis, commit a YAML configuration, run a local parse/import smoke, train
+with saved checkpoints, evaluate every candidate on a fixed suite, and record
+the selection rationale. Stage B/C were motivated by the project research
+premise that self-play competence alone is brittle under partner and
+state-distribution shift, while broader valid-state coverage and partner
+diversity can improve cross-play robustness.
+
+The final deployment is intentionally a separate phase. Once the course
+evaluator exposed recipe-validity failures in the historical benchmark, the
+project retained the original PPO artifacts and added short dataset-aggregation
+distillation only inside `final/`. It adapts validated specialist behavior to
+the course evaluator; it is not presented as a replacement for, or proof of an
+improved, PPO training objective. See
+[`docs/EXPERIMENT_HISTORY.md`](docs/EXPERIMENT_HISTORY.md) for the full
+experimental sequence and [`docs/RESULTS.md`](docs/RESULTS.md) for both result
+families.
+
+## PPO research benchmark
+
+The original PPO checkpoints are retained under ignored `outputs/` and are
+evaluated by the repository's checkpoint suite. They document the research
+process—self-play competence, exact-partner continuations, and positional
+robustness—not the final course benchmark. The retained selected artifacts are:
+
+| Layout | Selected PPO artifact | Internal benchmark protocol | Mean score | Mean soups | Source |
+| --- | --- | --- | ---: | ---: | --- |
+| `asymmetric_advantages` | step 900,096 Stage A inference | 3 seeds × both positions vs `greedy_full_task` | 65,273.00 | not valid under final recipe rule | `outputs/stage_a_asymmetric_seed67/selected/scenario1_evaluation.json` |
+| `coordination_ring` | seed-2 self-play inference | 3 seeds × both positions, deterministic self-play | 13,817.00 | 1.00 per position | `outputs/baseline_coordination_ring_seed2_1m/checkpoint_evaluation/checkpoint_evaluation.json` |
+| `counter_circuit` | seed-3 exact-partner step 1,902,592 | 20 seeds × both positions vs disclosed sticky/random greedy | 42,380.08 | 4.15 | `outputs/counter_circuit_exact_long_seed3_1m/checkpoint_evaluation/checkpoint_evaluation.json` |
+
+These reports use the internal checkpoint protocol described in
+[`docs/EVALUATION_PROTOCOL.md`](docs/EVALUATION_PROTOCOL.md). During later
+debugging, the team found that the historical delivery ledger could count an
+interaction that did **not** receive sparse reward for the active recipe. The
+artifacts are preserved for the PPO record, but those scores are deliberately
+not relabeled as course-evaluation scores.
+
+## Course-evaluation adaptation and verified final benchmark
+
+To satisfy the course evaluator without changing the original PPO research
+artifacts, `final/` uses short dataset aggregation from validated
+layout-specific teachers. The teacher actions label learner-visited states; the
+result is a compact actor with the same teacher-facing action contract. This
+was used only for the self-contained submission bundle. Scenario 2 retains the
+guided PPO model because the forced cross-layout comparison did not justify
+routing it elsewhere.
+
+The table below is the canonical course result table. It uses the unchanged
+evaluator bundled in `final/`, the official four seeds (`67`, `607`, `6007`,
+`60007`), and only positive-reward soups. It should not be compared directly
+with the internal PPO benchmark above.
+
+| Scenario / layout | Ego index | Partner | Route | Seeds | Mean score | Mean soups | Evidence |
+| --- | ---: | --- | --- | ---: | ---: | ---: | --- |
+| 1 / `asymmetric_advantages` | 0 | `greedy_full_task` | distilled PPO-compatible actor | 4 | 140,420.00 | 14.00 | [`final/README_STUDENT_AGENT.md`](final/README_STUDENT_AGENT.md) |
+| 2 / `coordination_ring` | 0 | sticky `greedy_full_task` (0.10) | guided PPO teammate model | 4 | 54,358.50 | 5.25 | [`final/README_STUDENT_AGENT.md`](final/README_STUDENT_AGENT.md) |
+| 3 / `counter_circuit` | 0 | sticky/random `greedy_full_task` (0.15 / 0.05) | distilled mixed-recipe actor | 4 | 76,296.75 | 7.50 | [`final/README_STUDENT_AGENT.md`](final/README_STUDENT_AGENT.md) |
+| 4 / custom `scenario_4` | 0 | noisy `random_motion` | distilled fixed-pot-B actor | 4 | 95,526.50 | 9.50 | [`final/README_STUDENT_AGENT.md`](final/README_STUDENT_AGENT.md) |
+| 4 / custom `scenario_4` | 1 | noisy `random_motion` | distilled fixed-pot-B actor | 4 | 93,100.25 | 9.25 | [`final/README_STUDENT_AGENT.md`](final/README_STUDENT_AGENT.md) |
+
+Scenario 4's eight position/seed attempts average `94,313.38` score and
+`9.375` soups. The equal-weight mean across the four scenarios is `91,347.16`.
+See [`docs/RESULTS.md`](docs/RESULTS.md) for protocol boundaries and historical
+results that are intentionally excluded from this table.
+
+## Quick start
+
+Python 3.10–3.12 is supported. The project pins Overcooked-AI 1.1.0, NumPy
+below 2, and PyTorch. Install the repository-local environment:
 
 ```bash
 uv sync
-.venv/bin/pytest
+.venv/bin/pytest -q
 ```
 
-Do not install project packages globally. The generated `.venv` and all run
-artifacts are ignored by git.
+### Run the self-contained submission benchmark
 
-## Existing teacher workflow
-
-Existing play, evaluate, demonstration, observation, wrapper, and policy YAML
-files remain valid:
-
-```bash
-.venv/bin/python -m src.evaluate --config configs/evaluate.yaml
-.venv/bin/python -m src.run_game --config configs/play.yaml
-.venv/bin/python -m src.collect_demonstrations --config configs/collect_human_demonstrations.yaml
-```
-
-`policies/rl_policy.py` implements the same three-method student interface as
-the supplied template. Its YAML configuration only needs an exported artifact,
-a device selection (`auto`, `cpu`, or `cuda`), and deterministic inference.
-
-## Competition submission evaluation
-
-The teacher-facing submission is self-contained in `final/`. Run its evaluator
-from that directory so `configs/competition.yaml` resolves the bundled router,
-model artifacts, layouts, and teacher runner correctly:
-
-```bash
-cd final
-../.venv/bin/python -m src.evaluate_competition \
-  --config configs/competition.yaml --scenario 1
-```
-
-Run every enabled scenario with:
+Run from `final/`; this is the same router and assets intended for teacher
+evaluation:
 
 ```bash
 cd final
@@ -55,162 +116,99 @@ cd final
   --config configs/competition.yaml --all-scenarios
 ```
 
-For a rendered single-scenario rollout, add `--render`:
+For one scenario or rendering:
 
 ```bash
 cd final
 ../.venv/bin/python -m src.evaluate_competition \
+  --config configs/competition.yaml --scenario 1
+
+../.venv/bin/python -m src.evaluate_competition \
   --config configs/competition.yaml --scenario 1 --render
 ```
 
-The `submissions` block in `final/configs/competition.yaml` must keep pointing
-to `policies/template.py` and `StudentAgent`. That router selects the bundled
-specialist for each known layout; do not replace it with the teacher template.
-If the teacher supplies its own Python environment, use its `python` command
-in place of `../.venv/bin/python` while still running from `final/`.
+`final/configs/competition.yaml` must keep its `submissions` entry pointed at
+`policies/template.py` and `StudentAgent`; replacing it with the teacher
+template bypasses the router. A clone includes the active model weights and all
+runtime code under `final/`; no Kaggle, RunPod, or parent-output dependency is
+needed for this benchmark.
 
-## Stage A training and evaluation
+### Minimal research-pipeline smoke
 
-```bash
-.venv/bin/python scripts/train.py --config configs/stage_a/train_self_play.yaml
-.venv/bin/python -m src.evaluate --config configs/stage_a/evaluate_checkpoint.yaml
-```
-
-Training writes the effective configuration, JSONL metrics, a resumable
-training checkpoint, a compact device-neutral inference artifact, and a run
-summary below the configured output root. To resume, set
-`checkpoint.resume_from` to a training checkpoint. RNG restoration defaults to
-`checkpoint.restore_rng_state: true`; fine-tuning can set it to `false` without
-changing checkpoint compatibility. Entropy and reward shaping can anneal over
-steps completed after resume. Evaluation loads the ego
-through `build_policy`, tests both positions, and reports sparse return,
-delivery events, timeout/invalid-action replacements, and the canonical
-official score.
-
-For checkpoint-aware runs, add `--evaluate-checkpoints`. This exports and
-evaluates every saved checkpoint in the configured deterministic and stochastic
-modes, from both ego positions, then copies the selected training and inference
-artifacts below `checkpoint_evaluation/selected/`:
+The non-submission pipeline remains reproducible through YAML:
 
 ```bash
+.venv/bin/python scripts/train.py \
+  --config configs/examples/ppo_smoke.yaml
+
 .venv/bin/python scripts/train.py \
   --config configs/stage_a/ablation_baseline_200k.yaml \
   --evaluate-checkpoints
 ```
 
-Selection first maximizes deterministic minimum-position official score, then
-deterministic mean official score. Stochastic metrics are diagnostic
-and do not override deployment selection.
+The smoke creates a small run directory; the second command creates a full
+checkpoint-evaluation run containing an effective
+configuration, metrics JSONL, training checkpoints, exported inference
+artifacts, and a checkpoint-evaluation report. Use the short examples in
+[`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md) before launching a large
+run.
 
-## Kaggle CPU or GPU execution
+## System overview
 
-Local smoke tests should pass before packaging. The packager follows the
-repository Kaggle skill's versioned input/output convention and runs the same
-training script and YAML remotely:
-
-```bash
-.venv/bin/python scripts/package_kaggle_run.py \
-  --version v1 \
-  --kernel-id USER/stage-a-self-play \
-  --title "Stage A self-play" \
-  --commit HEAD \
-  --accelerator cpu
-kaggle kernels push -p kaggle/v1/input
+```mermaid
+flowchart LR
+    Y[YAML config] --> ENV[Environment + observation builder]
+    ENV --> R[Rollout collector\nself-play or frozen partner]
+    R --> PPO[PPO update]
+    PPO --> CKPT[Versioned training checkpoint]
+    CKPT --> EVAL[Checkpoint evaluation\nseeds × positions × partners]
+    EVAL --> SELECT[Selection report + inference artifact]
+    SELECT --> FINAL[final/ router\nlayout/index dispatch]
+    FINAL --> TEACHER[Teacher evaluator]
 ```
 
-Monitor the kernel with the Kaggle CLI, then download `run_summary.json`,
-checkpoints, metrics, logs, and the effective configuration into
-`kaggle/v1/outputs` and copy important artifacts into the configured local
-output structure. Verify `remote_input_manifest.json` and
-`artifact_manifest.json` hashes. Kaggle-specific paths and APIs do not enter
-core modules.
+The architecture and stable interfaces are described in
+[`docs/architecture.md`](docs/architecture.md). Research questions, decisions,
+and known limitations are linked below.
 
-See [docs/architecture.md](docs/architecture.md) for module responsibilities,
-interfaces, checkpoint profiles, and compatibility guarantees.
+## Documentation
 
-## Stage B state augmentation
+| Document | Purpose |
+| --- | --- |
+| [`docs/RESEARCH_QUESTIONS.md`](docs/RESEARCH_QUESTIONS.md) | hypotheses and paper-informed rationale |
+| [`docs/EXPERIMENT_HISTORY.md`](docs/EXPERIMENT_HISTORY.md) | concise decision log by stage |
+| [`docs/RESULTS.md`](docs/RESULTS.md) | verified, protocol-separated results |
+| [`docs/EVALUATION_PROTOCOL.md`](docs/EVALUATION_PROTOCOL.md) | score, seeds, positions, and selection rules |
+| [`docs/FAILURE_ANALYSIS.md`](docs/FAILURE_ANALYSIS.md) | invalid-delivery and routing failures |
+| [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md) | local, Kaggle, and RunPod workflows |
+| [`final/README_STUDENT_AGENT.md`](final/README_STUDENT_AGENT.md) | self-contained submission-bundle details |
 
-Stage B is opt-in and reuses the normal environment and PPO collectors. Collect
-a short versioned buffer, validate it, then run the committed mixed-reset smoke:
+Detailed implementation references remain in
+[`docs/stage_b_state_augmentation.md`](docs/stage_b_state_augmentation.md),
+[`docs/stage_c_partners.md`](docs/stage_c_partners.md),
+[`docs/kaggle_workflow.md`](docs/kaggle_workflow.md), and
+[`docs/workstreams/`](docs/workstreams/). They are technical/historical
+references rather than the top-level project narrative.
 
-```bash
-.venv/bin/python scripts/collect_state_buffer.py \
-  --config configs/stage_b/collect_state_buffer_example.yaml
-.venv/bin/python scripts/inspect_state_buffer.py \
-  --buffer outputs/stage_b/buffers/example.json.gz \
-  --environment-config configs/stage_b/collect_state_buffer_example.yaml
-.venv/bin/python scripts/train.py \
-  --config configs/stage_b/train_mixed_resets_example.yaml
-```
+## Model and artifact policy
 
-Training without a `state_augmentation` section retains standard Stage A
-resets. See
-[docs/stage_b_state_augmentation.md](docs/stage_b_state_augmentation.md) for
-the buffer schema, policy-pairing format, checkpoint cross-play example, reset
-modes, compatibility checks, and extension points.
+- **`final/` — stable deployment bundle.** It contains the distilled
+  Scenario 1, 3, and 4 actors, the Scenario 2 guided PPO model, router, layouts,
+  and teacher evaluator needed by a fresh clone.
+- **`outputs/` — local research history.** It is intentionally ignored because
+  it contains large checkpoints and logs. The pre-distillation selected PPO
+  artifacts remain there unchanged; their paths and hashes are documented in
+  [`docs/RESULTS.md`](docs/RESULTS.md). They are not silently overwritten by
+  final-bundle distillation.
+- **Kaggle/RunPod — execution backends, not runtime dependencies.** Remote jobs
+  package an immutable source/configuration and download accepted outputs back
+  to `outputs/`.
 
-## Stage C frozen-partner training
+## Scope and limitations
 
-Stage C is opt-in: existing `partner.sampler: self_play` configurations retain
-Stage A behavior. Set the sampler to `weighted_pool` for a configurable frozen
-partner distribution or `exact` for one-partner best-response fine-tuning. Both
-modes train only the ego and balance it across physical player positions.
-
-The initial pool contains teacher scripted partners, sticky/random wrapper
-variants, `random_motion`, and one frozen self-play artifact:
-
-```bash
-.venv/bin/python scripts/train.py \
-  --config configs/stage_c/train_partner_pool.yaml
-.venv/bin/python -m src.evaluate \
-  --config configs/stage_c/evaluate_partner_pool.yaml
-```
-
-Evaluation reports each partner and ego position separately in deterministic
-and stochastic ego modes. See
-[docs/stage_c_partners.md](docs/stage_c_partners.md) for the partner interface,
-pool schema, exact fine-tuning command, checkpoint requirements, and extension
-instructions.
-
-## RunPod experiment jobs
-
-The reusable [RunPod skill](.codex/skills/runpod/SKILL.md) launches isolated
-experiment Pods through RunPod's official APIs. It always pins the cloned Git
-commit (or uploads an immutable archive), hashes declared inputs, enforces an
-approved provisioned hourly-rate cap, validates fetched artifacts, and
-terminates recorded Pods on completion or failure.
-
-Configure RunPod outside the repository, then verify the local setup:
-
-```bash
-brew install runpod/runpodctl/runpodctl  # if runpodctl is not installed
-runpodctl doctor
-.venv/bin/python .codex/skills/runpod/scripts/runpod_matrix.py check --require-api
-```
-
-Create a YAML/JSON matrix with the selected image, compute choice, setup
-command, job command, configuration, and artifact paths; see
-[the matrix format](.codex/skills/runpod/references/matrix-format.md). Run a
-dry run and a one-worker smoke test before a matrix launch:
-
-```bash
-.venv/bin/python .codex/skills/runpod/scripts/runpod_matrix.py launch \
-  --matrix PATH/TO/matrix.yaml --dry-run
-.venv/bin/python .codex/skills/runpod/scripts/runpod_matrix.py launch \
-  --matrix PATH/TO/matrix.yaml --estimate-hours HOURS \
-  --max-hourly-rate USD --max-parallel 1
-```
-
-For a validated matrix, the parallel command is the same with the desired
-worker count:
-
-```bash
-.venv/bin/python .codex/skills/runpod/scripts/runpod_matrix.py launch \
-  --matrix PATH/TO/matrix.yaml --estimate-hours HOURS \
-  --max-hourly-rate USD --max-parallel N
-```
-
-Keep `RUNPOD_API_KEY` (for CI) and, when needed, `RUNPOD_GIT_TOKEN` only in the
-environment. Locally the launcher can use the API key and SSH key created by
-`runpodctl doctor`; it never prints, writes, or commits credentials. Recover
-from interruption with `cleanup --manifest OUTPUT_DIR/runpod_state.json`.
+The final router specializes known layouts. It is not a claim of broad
+generalization to arbitrary layouts or partners. Historical checkpoint reports
+that relied on a recipe-agnostic delivery ledger are retained as diagnostic
+evidence, but are not advertised as teacher-benchmark results. The project did
+not create the Overcooked environment or PPO; it integrates and evaluates them
+in a reproducible task-specific system.

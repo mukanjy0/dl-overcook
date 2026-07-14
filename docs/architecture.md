@@ -1,4 +1,74 @@
-# Stage A architecture and opt-in Stage B/C extensions
+# Architecture
+
+> **Status:** stable interfaces with experimental Stage B/C extensions. The
+> self-contained submission runtime is documented separately in
+> [`../final/README_STUDENT_AGENT.md`](../final/README_STUDENT_AGENT.md).
+
+## System view
+
+```mermaid
+flowchart TD
+    CONFIG[YAML experiment config] --> ENV[Environment builder]
+    ENV --> OBS[Observation builder]
+    OBS --> COLLECT[Rollout collector]
+    PARTNERS[Self-play or frozen partner sampler] --> COLLECT
+    STATES[Optional Stage B state source] --> ENV
+    COLLECT --> PPO[PPO updater]
+    PPO --> TRAIN[Training checkpoint]
+    TRAIN --> EXPORT[Inference export]
+    EXPORT --> SUITE[Evaluation suite]
+    SUITE --> SELECT[Checkpoint selection]
+    SELECT --> DEPLOY[Deployment artifact or router entry]
+```
+
+### Evaluation and selection
+
+```mermaid
+flowchart LR
+    C[Saved checkpoints] --> X[Export inference artifact]
+    X --> M{Inference mode}
+    M --> D[Deterministic]
+    M --> S[Stochastic diagnostic]
+    D --> G[Layout × partner × seed × player index]
+    S --> G
+    G --> R[Soup, timeout, invalid-action, score reports]
+    R --> L[Rank deterministic minimum position score]
+    L --> T[Tie-break: deterministic mean score, then steps]
+    T --> A[Selected training + inference artifacts]
+```
+
+### Final submission dispatch
+
+```mermaid
+flowchart LR
+    O[Teacher state observation] --> SA[final/policies/template.py\nStudentAgent]
+    SA --> L{Layout identity}
+    L -->|asymmetric_advantages| AA[Distilled actor]
+    L -->|coordination_ring| CR[Guided PPO model]
+    L -->|counter_circuit| CC[Distilled mixed-recipe actor]
+    L -->|scenario_4| S4[Distilled two-index actor]
+    L -->|unknown| FB[Explicit greedy fallback]
+    AA --> ACT[Valid action index]
+    CR --> ACT
+    CC --> ACT
+    S4 --> ACT
+    FB --> ACT
+```
+
+### Experiment lifecycle
+
+```mermaid
+flowchart LR
+    H[Hypothesis] --> C[Committed config]
+    C --> S[Local parse/import smoke]
+    S --> R[Local, Kaggle, or RunPod execution]
+    R --> V[Retrieve outputs + verify hashes]
+    V --> E[Protocol-specific evaluation]
+    E --> D[Document result and decision]
+    D --> H
+```
+
+## Stage A architecture and opt-in Stage B/C extensions
 
 ## Compatibility spine
 

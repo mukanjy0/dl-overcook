@@ -1,5 +1,13 @@
 # Final Stage D Submission
 
+> **Historical report — superseded for deployment.** This report describes the
+> pre-distillation Stage D router and its then-current benchmark. The canonical
+> current submission is the self-contained `final/` bundle; see
+> [`../../final/README_STUDENT_AGENT.md`](../../final/README_STUDENT_AGENT.md)
+> and [`../RESULTS.md`](../RESULTS.md). The preserved artifacts and experiment
+> evidence below remain useful research provenance, but this file must not be
+> used as the current routing map or benchmark claim.
+
 ## Decision
 
 The final submitted policy is the Stage D router in
