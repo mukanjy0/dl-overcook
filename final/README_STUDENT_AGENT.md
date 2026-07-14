@@ -24,13 +24,17 @@ physical player index needed for routing and for the guided Scenario 2 encoder.
 
 ## Run the benchmark
 
-From the `final/` directory, use any Python environment containing the teacher
-dependencies (`torch`, `numpy`, `pyyaml`, and `overcooked_ai_py`):
+From the `final/` directory, use the repository's working virtual environment:
 
 ```bash
 cd final
-PYTHONPATH=. python -B run_student_agent_benchmark.py
+PYTHONPATH=. ../.venv/bin/python -B run_student_agent_benchmark.py
 ```
+
+The plain `python` command may be a pyenv shim and can fail if the version in
+the parent repository's `.python-version` file is not installed. The explicit
+virtual-environment path avoids that shim. Any other interpreter with `torch`,
+`numpy`, `pyyaml`, and `overcooked_ai_py` installed also works.
 
 The command executes the teacher policy-loading, wrapper, environment, partner,
 seed, horizon, and role-swap paths defined in `configs/competition.yaml`. It
