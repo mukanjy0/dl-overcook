@@ -35,6 +35,40 @@ files remain valid:
 the supplied template. Its YAML configuration only needs an exported artifact,
 a device selection (`auto`, `cpu`, or `cuda`), and deterministic inference.
 
+## Competition submission evaluation
+
+The teacher-facing submission is self-contained in `final/`. Run its evaluator
+from that directory so `configs/competition.yaml` resolves the bundled router,
+model artifacts, layouts, and teacher runner correctly:
+
+```bash
+cd final
+../.venv/bin/python -m src.evaluate_competition \
+  --config configs/competition.yaml --scenario 1
+```
+
+Run every enabled scenario with:
+
+```bash
+cd final
+../.venv/bin/python -m src.evaluate_competition \
+  --config configs/competition.yaml --all-scenarios
+```
+
+For a rendered single-scenario rollout, add `--render`:
+
+```bash
+cd final
+../.venv/bin/python -m src.evaluate_competition \
+  --config configs/competition.yaml --scenario 1 --render
+```
+
+The `submissions` block in `final/configs/competition.yaml` must keep pointing
+to `policies/template.py` and `StudentAgent`. That router selects the bundled
+specialist for each known layout; do not replace it with the teacher template.
+If the teacher supplies its own Python environment, use its `python` command
+in place of `../.venv/bin/python` while still running from `final/`.
+
 ## Stage A training and evaluation
 
 ```bash
