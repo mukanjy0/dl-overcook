@@ -7,7 +7,7 @@
 | --- | --- |
 | `asymmetric_advantages` | Bundled validated Stage D index-0 inference policy |
 | `coordination_ring` | Bundled guided PPO specialist from `scenario2_guided.py` |
-| `counter_circuit` | Deterministic mixed-recipe tomato specialist paired with the onion partner |
+| `counter_circuit` | Distilled mixed-recipe neural specialist paired with the onion partner |
 | `scenario_4` | Existing fixed-pot-B scripted specialist |
 | Other layouts | Existing generic greedy fallback |
 
@@ -23,11 +23,20 @@ sparse reward because they do not match an active order.
 waits for the onion partner to seed a pot, then adds a tomato only when the
 resulting ingredient multiset can still extend an active order. Navigation,
 dish handling, plating, and delivery continue to use `GreedyFullTaskPolicy`.
-This keeps the workaround deterministic and narrowly scoped to recipe choice.
+This keeps the teacher deterministic and narrowly scoped to recipe choice.
 
-On the four official Scenario 3 seeds, the unchanged teacher evaluator reports
-11, 11, 6, and 5 valid soups (mean score `83,968.75`). Scenario 4 remains
-unchanged at mean score `94,281.50` across both physical positions.
+The deployed Scenario 3 network was repaired with dataset aggregation rather
+than another long PPO run. The existing PPO-compatible actor-critic was rolled
+out against the exact disclosed noisy partner, every learner-visited state was
+labelled by the recipe-safe teacher, and checkpoints were selected using only
+positive sparse-reward soups. Invalid deliveries in Overcooked's event ledger
+were deliberately excluded. This retains a small deterministic neural policy
+at inference while correcting the previous interaction-only failure mode.
+
+The unchanged teacher command produced 8, 9, 6, and 7 positive-reward soups on
+the four official Scenario 3 seeds, with mean score `76,296.75` and no zero-soup
+seed. Scenario 4 remains unchanged at mean score `94,281.50` across both
+physical positions.
 
 The agent requires the teacher state observation:
 
@@ -90,8 +99,10 @@ Only student-agent integration assets were added or changed:
   guided specialist and its inference-only dependencies.
 - `policies/stage_d_aa_position0.pt` and `policies/stage_d_counter_circuit.pt`:
   preserved Stage D inference artifacts, bundled so the router has no dependency
-  on a parent checkout. The counter-circuit artifact is retained for provenance;
-  the active route is the recipe-safe scripted specialist in `template.py`.
+  on a parent checkout. The old counter-circuit artifact is retained for
+  provenance.
+- `policies/counter_circuit_distilled.pt`: PPO-compatible Scenario 3 network
+  repaired from recipe-safe learner-visited demonstrations.
 - `src/policy_wrappers.py`: forwards normal `set_mdp` and `set_agent_index`
   lifecycle calls to `StudentAgent`; this pre-initializes inference state outside
   the 100 ms action limit.
@@ -107,4 +118,5 @@ competition evaluator were not changed.
 | --- | --- |
 | `policies/stage_d_aa_position0.pt` | `f6c4289d14623895249615b0bc48e11217bef62c53ce0977c050e076eb3187a2` |
 | `policies/stage_d_counter_circuit.pt` | `176623829c3f71c17e73865170e87a8b88db6ae55471590d759cbca917a3bf41` |
+| `policies/counter_circuit_distilled.pt` | `68887668dce05d7589458241e225f250cfd2037ffd9bc78c7165ca3805724ce4` |
 | `policies/scenario2_guided_model.pt` | `7f7a20cc7a9e6d5d7821597bcac567a3372ec1588f17d85e3a0c983213c9711f` |

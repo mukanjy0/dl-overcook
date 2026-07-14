@@ -24,6 +24,7 @@ from policies.scenario2_guided import StudentAgent as Scenario2GuidedAgent
 _POLICIES = Path(__file__).resolve().parent
 _ARTIFACTS = {
     "asymmetric_advantages": _POLICIES / "stage_d_aa_position0.pt",
+    "counter_circuit": _POLICIES / "counter_circuit_distilled.pt",
 }
 _MODELS: dict[Path, "_ActorCritic"] = {}
 
