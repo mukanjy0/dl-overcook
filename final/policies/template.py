@@ -23,7 +23,7 @@ from policies.scenario2_guided import StudentAgent as Scenario2GuidedAgent
 
 _POLICIES = Path(__file__).resolve().parent
 _ARTIFACTS = {
-    "asymmetric_advantages": _POLICIES / "stage_d_aa_position0.pt",
+    "asymmetric_advantages": _POLICIES / "asymmetric_advantages_distilled.pt",
     "counter_circuit": _POLICIES / "counter_circuit_distilled.pt",
 }
 _MODELS: dict[Path, "_ActorCritic"] = {}
@@ -84,6 +84,33 @@ class _Scenario4FixedPotB(GreedyFullTaskPolicy):
         candidates = super()._pots_that_can_accept_ingredients(state, pot_states)
         pots = sorted(self.mdp.get_pot_locations())
         return [pot for pot in candidates if pots and pot == pots[-1]]
+
+
+class _AsymmetricReachableFullTask(GreedyFullTaskPolicy):
+    """Full-task teacher that rejects unreachable cross-wall targets."""
+
+    def _nearest(self, origin, positions):
+        valid_positions = set(self.mdp.get_valid_player_positions())
+        reachable: list[tuple[int, tuple[int, int]]] = []
+        for target in positions:
+            goals = {
+                position
+                for position in self._adjacent_positions(target)
+                if position in valid_positions
+            }
+            path = (
+                self._bfs_shortest_path(
+                    origin,
+                    goals,
+                    valid_positions,
+                    blocked=set(),
+                )
+                if goals
+                else None
+            )
+            if path is not None:
+                reachable.append((len(path), target))
+        return min(reachable)[1] if reachable else None
 
 
 class _CounterCircuitMixedRecipe(GreedyFullTaskPolicy):

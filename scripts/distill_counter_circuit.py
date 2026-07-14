@@ -55,6 +55,9 @@ ENVIRONMENT = {
     "horizon": 400,
     "old_dynamics": True,
 }
+PARTNER_RANDOM_ACTION_PROB = 0.05
+PARTNER_STICKY_ACTION_PROB = 0.15
+TEACHER_CLASS = _CounterCircuitMixedRecipe
 
 
 def _load_actor(path: Path) -> tuple[dict, ActorCritic, ObservationSpec]:
@@ -73,8 +76,8 @@ def _load_actor(path: Path) -> tuple[dict, ActorCritic, ObservationSpec]:
 def _new_partner(env, seed: int) -> EpsilonActionWrapper:
     partner = EpsilonActionWrapper(
         GreedyFullTaskPolicy(ingredient="onion", avoid_teammate=True, seed=seed),
-        random_action_prob=0.05,
-        sticky_action_prob=0.15,
+        random_action_prob=PARTNER_RANDOM_ACTION_PROB,
+        sticky_action_prob=PARTNER_STICKY_ACTION_PROB,
         seed=seed,
     )
     partner.reset()
@@ -83,8 +86,8 @@ def _new_partner(env, seed: int) -> EpsilonActionWrapper:
     return partner
 
 
-def _teacher(env) -> _CounterCircuitMixedRecipe:
-    teacher = _CounterCircuitMixedRecipe()
+def _teacher(env) -> GreedyFullTaskPolicy:
+    teacher = TEACHER_CLASS()
     teacher.reset()
     teacher.set_agent_index(0)
     teacher.set_mdp(env.mdp)

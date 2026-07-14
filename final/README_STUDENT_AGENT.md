@@ -5,11 +5,26 @@
 
 | Layout | Selected policy |
 | --- | --- |
-| `asymmetric_advantages` | Bundled validated Stage D index-0 inference policy |
+| `asymmetric_advantages` | Distilled reachability-aware full-task neural specialist |
 | `coordination_ring` | Bundled guided PPO specialist from `scenario2_guided.py` |
 | `counter_circuit` | Distilled mixed-recipe neural specialist paired with the onion partner |
 | `scenario_4` | Existing fixed-pot-B scripted specialist |
 | Other layouts | Existing generic greedy fallback |
+
+### Scenario 1 reachability repair
+
+The two halves of `asymmetric_advantages` contain duplicate dispensers and
+serving windows separated by an impassable wall. The original PPO and generic
+greedy behavior selected targets using Manhattan distance, so after reaching a
+pot they could select a slightly closer feature on the unreachable opposite
+side and wait indefinitely.
+
+`_AsymmetricReachableFullTask` keeps the existing full-task logic and BFS
+navigation, but filters candidate features to those with a reachable adjacent
+interaction tile before comparing path lengths. Its behavior was distilled
+into the existing PPO-compatible actor-critic using learner-visited states.
+The unchanged teacher command produces 14 valid three-onion soups on every
+official seed, with score `140,420` per seed and no invalid recipe deliveries.
 
 ### Why Scenario 3 uses a heuristic
 
@@ -66,6 +81,12 @@ From `final/`, run one scenario directly with the teacher command:
 python -m src.evaluate_competition --config configs/competition.yaml --scenario 1
 ```
 
+Run every enabled scenario with:
+
+```bash
+python -m src.evaluate_competition --config configs/competition.yaml --all-scenarios
+```
+
 Run with rendering:
 
 ```bash
@@ -103,6 +124,8 @@ Only student-agent integration assets were added or changed:
   provenance.
 - `policies/counter_circuit_distilled.pt`: PPO-compatible Scenario 3 network
   repaired from recipe-safe learner-visited demonstrations.
+- `policies/asymmetric_advantages_distilled.pt`: PPO-compatible Scenario 1
+  network repaired from reachability-aware learner-visited demonstrations.
 - `src/policy_wrappers.py`: forwards normal `set_mdp` and `set_agent_index`
   lifecycle calls to `StudentAgent`; this pre-initializes inference state outside
   the 100 ms action limit.
@@ -117,6 +140,7 @@ competition evaluator were not changed.
 | Asset | SHA-256 |
 | --- | --- |
 | `policies/stage_d_aa_position0.pt` | `f6c4289d14623895249615b0bc48e11217bef62c53ce0977c050e076eb3187a2` |
+| `policies/asymmetric_advantages_distilled.pt` | `55f5738f1b64e2fd233904ce0fad25d5e7ece2e802fcdebeafbb69c040cf1500` |
 | `policies/stage_d_counter_circuit.pt` | `176623829c3f71c17e73865170e87a8b88db6ae55471590d759cbca917a3bf41` |
 | `policies/counter_circuit_distilled.pt` | `68887668dce05d7589458241e225f250cfd2037ffd9bc78c7165ca3805724ce4` |
 | `policies/scenario2_guided_model.pt` | `7f7a20cc7a9e6d5d7821597bcac567a3372ec1588f17d85e3a0c983213c9711f` |
