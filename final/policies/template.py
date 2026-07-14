@@ -24,7 +24,6 @@ from policies.scenario2_guided import StudentAgent as Scenario2GuidedAgent
 _POLICIES = Path(__file__).resolve().parent
 _ARTIFACTS = {
     "asymmetric_advantages": _POLICIES / "stage_d_aa_position0.pt",
-    "counter_circuit": _POLICIES / "stage_d_counter_circuit.pt",
 }
 _MODELS: dict[Path, "_ActorCritic"] = {}
 
@@ -84,6 +83,50 @@ class _Scenario4FixedPotB(GreedyFullTaskPolicy):
         candidates = super()._pots_that_can_accept_ingredients(state, pot_states)
         pots = sorted(self.mdp.get_pot_locations())
         return [pot for pot in candidates if pots and pot == pots[-1]]
+
+
+class _CounterCircuitMixedRecipe(GreedyFullTaskPolicy):
+    """Tomato specialist that completes the onion partner's valid recipes."""
+
+    def __init__(self):
+        super().__init__(ingredient="tomato", avoid_teammate=True)
+
+    @staticmethod
+    def _ingredient_names(soup) -> list[str]:
+        ingredients = getattr(
+            soup,
+            "ingredients",
+            getattr(soup, "_ingredients", ()),
+        )
+        return [item if isinstance(item, str) else item.name for item in ingredients]
+
+    @staticmethod
+    def _can_extend_active_order(ingredients: list[str], orders) -> bool:
+        for order in orders:
+            remaining = list(order)
+            for ingredient in ingredients:
+                if ingredient not in remaining:
+                    break
+                remaining.remove(ingredient)
+            else:
+                return True
+        return False
+
+    def _pots_that_can_accept_ingredients(self, state, pot_states):
+        candidates = super()._pots_that_can_accept_ingredients(state, pot_states)
+        valid: list[tuple[int, int]] = []
+        for position in candidates:
+            soup = state.objects.get(position)
+            if soup is None or soup.name != "soup":
+                continue
+            current = self._ingredient_names(soup)
+            # Wait for the disclosed onion partner to seed a pot. This avoids
+            # creating single- or triple-tomato soups when the partner is blocked.
+            if "onion" not in current:
+                continue
+            if self._can_extend_active_order(current + ["tomato"], state.all_orders):
+                valid.append(position)
+        return valid
 
 
 class StudentAgent:
@@ -158,13 +201,24 @@ class StudentAgent:
         return int(torch.argmax(logits, dim=-1).item())
 
     def _scripted_action(self, layout: str, state, mdp, agent_index: int) -> int:
-        route = "scenario4" if layout == "scenario_4" else "generic"
+        route = (
+            "scenario4"
+            if layout == "scenario_4"
+            else "counter_circuit"
+            if layout == "counter_circuit"
+            else "generic"
+        )
         if self._scripted is None or self._scripted_route != route:
-            self._scripted = (
-                _Scenario4FixedPotB(ingredient="onion", avoid_teammate=False)
-                if route == "scenario4"
-                else GreedyFullTaskPolicy(ingredient="onion", avoid_teammate=True)
-            )
+            if route == "scenario4":
+                self._scripted = _Scenario4FixedPotB(
+                    ingredient="onion", avoid_teammate=False
+                )
+            elif route == "counter_circuit":
+                self._scripted = _CounterCircuitMixedRecipe()
+            else:
+                self._scripted = GreedyFullTaskPolicy(
+                    ingredient="onion", avoid_teammate=True
+                )
             self._scripted_route = route
         self._scripted.set_agent_index(agent_index)
         self._scripted.set_mdp(mdp)

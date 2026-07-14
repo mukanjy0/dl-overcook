@@ -7,9 +7,27 @@
 | --- | --- |
 | `asymmetric_advantages` | Bundled validated Stage D index-0 inference policy |
 | `coordination_ring` | Bundled guided PPO specialist from `scenario2_guided.py` |
-| `counter_circuit` | Bundled validated Stage D inference policy |
+| `counter_circuit` | Deterministic mixed-recipe tomato specialist paired with the onion partner |
 | `scenario_4` | Existing fixed-pot-B scripted specialist |
 | Other layouts | Existing generic greedy fallback |
+
+### Why Scenario 3 uses a heuristic
+
+The disclosed `counter_circuit` orders all require both onion and tomato, while
+the disclosed greedy partner fetches onions. The previous PPO specialist and
+partner delivered single-ingredient or triple-onion soups; Overcooked records
+those interactions in `game_stats`, but the teacher correctly awards zero
+sparse reward because they do not match an active order.
+
+`_CounterCircuitMixedRecipe` therefore takes the complementary tomato role. It
+waits for the onion partner to seed a pot, then adds a tomato only when the
+resulting ingredient multiset can still extend an active order. Navigation,
+dish handling, plating, and delivery continue to use `GreedyFullTaskPolicy`.
+This keeps the workaround deterministic and narrowly scoped to recipe choice.
+
+On the four official Scenario 3 seeds, the unchanged teacher evaluator reports
+11, 11, 6, and 5 valid soups (mean score `83,968.75`). Scenario 4 remains
+unchanged at mean score `94,281.50` across both physical positions.
 
 The agent requires the teacher state observation:
 
@@ -56,7 +74,7 @@ with the repository's virtual-environment interpreter instead:
 ## Self-contained bundle
 
 All project files needed at runtime are inside `final/`: the teacher harness,
-layouts, policy code, Scenario 2 inference helpers, and all three required
+layouts, policy code, Scenario 2 inference helpers, and all bundled
 model artifacts. The agent only resolves paths relative to its own files; it
 does not read the parent repository, external checkpoints, or local output
 directories. A Python environment with the listed third-party dependencies is
@@ -71,8 +89,9 @@ Only student-agent integration assets were added or changed:
   `policies/scenario2_guided_model.pt`: the validated higher-scoring Scenario 2
   guided specialist and its inference-only dependencies.
 - `policies/stage_d_aa_position0.pt` and `policies/stage_d_counter_circuit.pt`:
-  the existing validated Stage D inference artifacts, bundled so the router has
-  no dependency on a parent checkout.
+  preserved Stage D inference artifacts, bundled so the router has no dependency
+  on a parent checkout. The counter-circuit artifact is retained for provenance;
+  the active route is the recipe-safe scripted specialist in `template.py`.
 - `src/policy_wrappers.py`: forwards normal `set_mdp` and `set_agent_index`
   lifecycle calls to `StudentAgent`; this pre-initializes inference state outside
   the 100 ms action limit.
